@@ -1,0 +1,35 @@
+{
+  "name": "samford-workflow-lab",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc --noEmit && node scripts/build.mjs",
+    "start": "node --import tsx server/main.ts",
+    "test": "node --import tsx --test --test-concurrency=1 tests/api.test.ts",
+    "test:browser": "node --import tsx --test --test-concurrency=1 tests/browser.test.ts",
+    "coverage": "node --import tsx scripts/coverage.ts",
+    "check": "npm run build && npm test && npm run test:browser && npm run coverage"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "pdfkit": "^0.17.2",
+    "pdf-lib": "^1.17.1",
+    "qrcode": "^1.5.4",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.1",
+    "@types/express": "^5.0.5",
+    "@types/node": "^24.10.0",
+    "@types/pdfkit": "^0.17.3",
+    "@types/qrcode": "^1.5.5",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
+    "esbuild": "^0.25.11",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3"
+  },
+  "engines": { "node": ">=24.0.0" }
+}

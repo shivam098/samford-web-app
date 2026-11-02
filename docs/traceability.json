@@ -1,0 +1,5071 @@
+{
+  "generatedAt": "2026-11-02T00:53:20.283Z",
+  "apiRunAt": "2026-11-02T00:52:40.024Z",
+  "browserRunAt": "2026-11-02T00:53:19.112Z",
+  "scope": "87 implemented journey workspaces and verified primary API paths. Browser behavior is evidence only for the interactions explicitly listed; all-route rendering is reported separately.",
+  "limitations": [
+    "Public synthetic personas, OTP, captcha and signing PIN are demonstrations, not production authentication or legal clinical signatures.",
+    "No live ETHER, ABDM, messaging, payment, insurance, video, audio or laboratory-provider integrations.",
+    "Native device encryption/biometric unlock/screenshot blocking/remote OS wipe are not implemented by a web page. Browser data uses persona-isolated encrypted IndexedDB.",
+    "Hindi doctor navigation is implemented; comprehensive Hindi field/content/PDF localization is not complete. Generated PDFs use English labels.",
+    "Pen drawing and reviewed image attachment work; speech/handwriting text recognition use explicitly labelled transcript simulations.",
+    "One active role per named demo persona. Production multi-role identities, network restrictions, recovery-code enrollment, clinical interaction knowledge and hospital-specific authorization policy remain unvalidated.",
+    "Physical scanners, webcam capture, printers and signature capture are exercised through file/PDF/reference simulations, not hardware integrations.",
+    "All primary journey flows are tested, not all 349 illustrated PRD screen states or every optional administrative/financial branch. No scale, accessibility certification or production-readiness claim."
+  ],
+  "journeys": [
+    {
+      "id": "DJ01",
+      "title": "Access & sign-in",
+      "group": "Before the first day",
+      "roles": [
+        "doctor",
+        "resident"
+      ],
+      "collection": [
+        "access",
+        "correction"
+      ],
+      "description": "Request access, track the decision, pass a simulated second check, change a one-time password and confirm your profile. IT handles recovery.",
+      "ui": "/#journey/DJ01",
+      "apis": [
+        "/api/access",
+        "/api/access/track",
+        "/api/auth/start",
+        "/api/auth/otp",
+        "/api/auth/password",
+        "/api/auth/confirm",
+        "/api/commands/profile.correction"
+      ],
+      "workflowCommands": [
+        {
+          "name": "profile.correction",
+          "roles": [
+            "doctor",
+            "resident"
+          ],
+          "allowedFrom": [],
+          "target": null
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Access queue count rises; head cannot approve; temporary password shown only once; wrong MFA rejected; patient scope blocked until password change and profile confirmation; old temp is unusable and absent from persisted audit/receipts."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "DJ02",
+      "title": "Make it yours",
+      "group": "Before the first day",
+      "roles": [
+        "doctor",
+        "resident"
+      ],
+      "collection": [
+        "set"
+      ],
+      "description": "Arrange Home, choose quiet hours, print language and six shortcuts. Critical results and referrals stay visible. Your profile QR holds no patient data.",
+      "ui": "/#journey/DJ02",
+      "apis": [
+        "/api/profile/{doctorId}/qr",
+        "/profile/{doctorId}",
+        "/api/commands/preferences.save"
+      ],
+      "workflowCommands": [
+        {
+          "name": "preferences.save",
+          "roles": [
+            "doctor",
+            "resident"
+          ],
+          "allowedFrom": [],
+          "target": null
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Preferences persist across sign-out; mandatory results card cannot be hidden; QR points only to a public doctor profile."
+      ],
+      "browserBehavior": [
+        "Pointer-drawn pen image is reviewed and saved as a private patient document linked to the immutable note; 200% root text size and Hindi doctor navigation apply from persisted preferences."
+      ],
+      "browserRendered": true
+    },
+    {
+      "id": "DJ03",
+      "title": "Start the day",
+      "group": "Start the day",
+      "roles": [
+        "doctor",
+        "resident"
+      ],
+      "collection": [
+        "presence",
+        "referral",
+        "result"
+      ],
+      "description": "Record your presence and see first and latest sign-in in IST. Sign-in is app activity, not attendance.",
+      "ui": "/#journey/DJ03",
+      "apis": [
+        "/api/state",
+        "/api/auth/lock",
+        "/api/auth/unlock",
+        "/api/commands/presence.set",
+        "/api/commands/announcement.dismiss"
+      ],
+      "workflowCommands": [
+        {
+          "name": "presence.set",
+          "roles": [
+            "doctor",
+            "resident"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "announcement.dismiss",
+          "roles": [
+            "doctor",
+            "resident"
+          ],
+          "allowedFrom": [
+            "Published"
+          ],
+          "target": "announcement"
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Scoped search refuses another doctor’s visit; presence reaches the desk; call updates a token-only public board; identity confirmation opens consultation."
+      ],
+      "browserBehavior": [
+        "390px/320px doctor layout has no document overflow, preserves Home/Patients/Calendar/More bottom tabs; locking removes patient content and PIN unlock restores workspace."
+      ],
+      "browserRendered": true
+    },
+    {
+      "id": "DJ04",
+      "title": "My calendar",
+      "group": "Start the day",
+      "roles": [
+        "doctor",
+        "resident"
+      ],
+      "collection": [
+        "availability",
+        "visit",
+        "roster"
+      ],
+      "description": "Request leave or changed hours. See affected bookings; the front desk decides and moves patients.",
+      "ui": "/#journey/DJ04",
+      "apis": [
+        "/api/slots",
+        "/api/commands/availability.request"
+      ],
+      "workflowCommands": [
+        {
+          "name": "availability.request",
+          "roles": [
+            "doctor",
+            "resident"
+          ],
+          "allowedFrom": [],
+          "target": null
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Availability request counts affected booking, remains requested before desk decision, approval blocks slots and marks needs-move; moving keeps history and clears the affected item."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "DJ05",
+      "title": "Today's patients",
+      "group": "OPD clinic",
+      "roles": [
+        "doctor",
+        "resident"
+      ],
+      "collection": [
+        "visit"
+      ],
+      "description": "Filter and search your authorized visits by day, mode, type and status. Urgent accepted referrals appear first.",
+      "boundary": "Voice search uses a labelled transcript simulator; no microphone recording or cloud speech service.",
+      "ui": "/#journey/DJ05",
+      "apis": [
+        "/api/entities?type=visit"
+      ],
+      "workflowCommands": [],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Scoped search refuses another doctor’s visit; presence reaches the desk; call updates a token-only public board; identity confirmation opens consultation."
+      ],
+      "browserBehavior": [
+        "Browser users scoped-search/open patient, confirm identity, type/review/save note, review medicine and send Rx; independent pharmacy browser acknowledges and dispenses; doctor sees fulfillment.",
+        "Front desk types a synthetic registration, books and checks in using actual browser forms; doctor independently sees the new patient; cashier payment form defaults exact due and changes bill to Paid."
+      ],
+      "browserRendered": true
+    },
+    {
+      "id": "DJ06",
+      "title": "Call & open a visit",
+      "group": "OPD clinic",
+      "roles": [
+        "doctor",
+        "resident"
+      ],
+      "collection": [
+        "visit",
+        "board"
+      ],
+      "description": "Call a token, confirm patient identity, open the six-tab workspace and move through the filtered list.",
+      "ui": "/#journey/DJ06",
+      "apis": [
+        "/api/board/{id}",
+        "/api/commands/visit.call",
+        "/api/commands/visit.skip",
+        "/api/commands/visit.open"
+      ],
+      "workflowCommands": [
+        {
+          "name": "visit.call",
+          "roles": [
+            "doctor",
+            "resident"
+          ],
+          "allowedFrom": [
+            "Waiting",
+            "Called",
+            "Missed"
+          ],
+          "target": "visit"
+        },
+        {
+          "name": "visit.skip",
+          "roles": [
+            "doctor",
+            "resident"
+          ],
+          "allowedFrom": [
+            "Called"
+          ],
+          "target": "visit"
+        },
+        {
+          "name": "visit.open",
+          "roles": [
+            "doctor",
+            "resident"
+          ],
+          "allowedFrom": [
+            "Waiting",
+            "Called",
+            "Held",
+            "Missed"
+          ],
+          "target": "visit"
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Scoped search refuses another doctor’s visit; presence reaches the desk; call updates a token-only public board; identity confirmation opens consultation.",
+        "Skip retains token; three calls mark Missed and explicit identity check can reopen; collection hold/resume persists; sample label stores actual scan code; narrative-only imaging verifies/releases independently."
+      ],
+      "browserBehavior": [
+        "Browser users scoped-search/open patient, confirm identity, type/review/save note, review medicine and send Rx; independent pharmacy browser acknowledges and dispenses; doctor sees fulfillment."
+      ],
+      "browserRendered": true
+    },
+    {
+      "id": "DJ07",
+      "title": "History & allergies",
+      "group": "OPD clinic",
+      "roles": [
+        "doctor",
+        "resident"
+      ],
+      "collection": [
+        "history",
+        "allergy",
+        "document",
+        "result"
+      ],
+      "description": "Read history and reports, record allergies with immutable corrections, and view patient documents and authors.",
+      "ui": "/#journey/DJ07",
+      "apis": [
+        "/api/history/{id}",
+        "/api/documents/{id}/file",
+        "/api/commands/history.add",
+        "/api/commands/allergy.add",
+        "/api/commands/allergy.void",
+        "/api/commands/document.upload"
+      ],
+      "workflowCommands": [
+        {
+          "name": "history.add",
+          "roles": [
+            "doctor",
+            "resident"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "allergy.add",
+          "roles": [
+            "doctor",
+            "resident"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "allergy.void",
+          "roles": [
+            "doctor",
+            "resident"
+          ],
+          "allowedFrom": [
+            "Active"
+          ],
+          "target": "allergy"
+        },
+        {
+          "name": "document.upload",
+          "roles": [
+            "doctor",
+            "resident",
+            "desk",
+            "cashier",
+            "nurse",
+            "mrd",
+            "manager",
+            "patient"
+          ],
+          "allowedFrom": [],
+          "target": null
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "History authors persist; allergy correction preserves old entry; extreme BP requires confirmation; two note saves retain both versions and missing-code request."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "DJ08",
+      "title": "Vitals & examination",
+      "group": "OPD clinic",
+      "roles": [
+        "doctor",
+        "resident"
+      ],
+      "collection": [
+        "vital"
+      ],
+      "description": "Record measurements and examination findings. Confirm extreme readings and keep the previous readings.",
+      "ui": "/#journey/DJ08",
+      "apis": [
+        "/api/commands/vital.record"
+      ],
+      "workflowCommands": [
+        {
+          "name": "vital.record",
+          "roles": [
+            "doctor",
+            "resident",
+            "nurse"
+          ],
+          "allowedFrom": [],
+          "target": null
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "History authors persist; allergy correction preserves old entry; extreme BP requires confirmation; two note saves retain both versions and missing-code request."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "DJ09",
+      "title": "Consultation notes",
+      "group": "OPD clinic",
+      "roles": [
+        "doctor",
+        "resident"
+      ],
+      "collection": [
+        "note",
+        "coding"
+      ],
+      "description": "Write and review a note, use a template, retain signed versions and request a missing diagnosis code.",
+      "boundary": "Pen and dictation conversion are reviewed text simulations. A web page cannot enforce OS screenshot blocking.",
+      "ui": "/#journey/DJ09",
+      "apis": [
+        "/api/commands/note.save",
+        "/api/commands/note.countersign"
+      ],
+      "workflowCommands": [
+        {
+          "name": "note.save",
+          "roles": [
+            "doctor",
+            "resident"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "note.countersign",
+          "roles": [
+            "doctor"
+          ],
+          "allowedFrom": [
+            "Draft"
+          ],
+          "target": "note"
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "History authors persist; allergy correction preserves old entry; extreme BP requires confirmation; two note saves retain both versions and missing-code request."
+      ],
+      "browserBehavior": [
+        "Browser users scoped-search/open patient, confirm identity, type/review/save note, review medicine and send Rx; independent pharmacy browser acknowledges and dispenses; doctor sees fulfillment.",
+        "Encrypted form draft and queued command survive reload while offline simulation is active; reconnect applies once; lost reply retries to one effect; conflict shows both versions and requires a newly reviewed action.",
+        "Pointer-drawn pen image is reviewed and saved as a private patient document linked to the immutable note; 200% root text size and Hindi doctor navigation apply from persisted preferences."
+      ],
+      "browserRendered": true
+    },
+    {
+      "id": "DJ10",
+      "title": "Prescribe medicines",
+      "group": "OPD clinic",
+      "roles": [
+        "doctor",
+        "resident"
+      ],
+      "collection": [
+        "rx",
+        "set",
+        "question"
+      ],
+      "description": "Review each medicine, dose and schedule, handle allergy warnings, approve a version and hand it to pharmacy. No automatic substitution.",
+      "ui": "/#journey/DJ10",
+      "apis": [
+        "/api/commands/rx.approve",
+        "/api/commands/rx.countersign",
+        "/api/commands/rx.send",
+        "/api/commands/set.personal",
+        "/api/commands/catalog.request"
+      ],
+      "workflowCommands": [
+        {
+          "name": "rx.approve",
+          "roles": [
+            "doctor",
+            "resident"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "rx.countersign",
+          "roles": [
+            "doctor"
+          ],
+          "allowedFrom": [
+            "Draft"
+          ],
+          "target": "rx"
+        },
+        {
+          "name": "rx.send",
+          "roles": [
+            "doctor"
+          ],
+          "allowedFrom": [
+            "Approved"
+          ],
+          "target": "rx"
+        },
+        {
+          "name": "set.personal",
+          "roles": [
+            "doctor",
+            "resident"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "catalog.request",
+          "roles": [
+            "doctor",
+            "resident"
+          ],
+          "allowedFrom": [],
+          "target": null
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Allergy blocks unreviewed approval; pharmacist receives exact Rx; expired/mismatched batches fail; prescribing doctor approves substitution v2; dispense taxes reconcile; 4/10 return credits INR22.40 and restores batch."
+      ],
+      "browserBehavior": [
+        "Browser users scoped-search/open patient, confirm identity, type/review/save note, review medicine and send Rx; independent pharmacy browser acknowledges and dispenses; doctor sees fulfillment."
+      ],
+      "browserRendered": true
+    },
+    {
+      "id": "DJ11",
+      "title": "Tests & imaging",
+      "group": "OPD clinic",
+      "roles": [
+        "doctor",
+        "resident"
+      ],
+      "collection": [
+        "order",
+        "sample",
+        "result",
+        "set"
+      ],
+      "description": "Choose active catalog tests with LOINC codes, urgency and clinical context. Charges are read-only; payment and lab receipt remain separate.",
+      "ui": "/#journey/DJ11",
+      "apis": [
+        "/api/commands/set.personal",
+        "/api/commands/order.send",
+        "/api/commands/order.cancel"
+      ],
+      "workflowCommands": [
+        {
+          "name": "set.personal",
+          "roles": [
+            "doctor",
+            "resident"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "order.send",
+          "roles": [
+            "doctor",
+            "resident"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "order.cancel",
+          "roles": [
+            "doctor"
+          ],
+          "allowedFrom": [
+            "Payment pending",
+            "Cleared",
+            "Recollection needed",
+            "Collection held"
+          ],
+          "target": "order"
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Urgent orders generate tariff bills; unpaid collection fails; payment failure leaves unpaid, success clears lab; wrong barcode and own verification fail; critical release appears in doctor/patient scopes; amendments preserve original review and require another review."
+      ],
+      "browserBehavior": [
+        "When an earlier note is rejected, a separately finalized test order still reaches the hospital; the rejected note remains visible for correction rather than falsely marking the whole visit synced."
+      ],
+      "browserRendered": true
+    },
+    {
+      "id": "DJ12",
+      "title": "Plan a follow-up",
+      "group": "OPD clinic",
+      "roles": [
+        "doctor",
+        "resident"
+      ],
+      "collection": [
+        "followup",
+        "visit"
+      ],
+      "description": "Keep the follow-up recommendation even without a slot. Front-desk acceptance creates a confirmed booking.",
+      "ui": "/#journey/DJ12",
+      "apis": [
+        "/api/commands/followup.request",
+        "/api/commands/followup.acknowledge"
+      ],
+      "workflowCommands": [
+        {
+          "name": "followup.request",
+          "roles": [
+            "doctor",
+            "resident"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "followup.acknowledge",
+          "roles": [
+            "doctor",
+            "resident"
+          ],
+          "allowedFrom": [
+            "Booked",
+            "Declined"
+          ],
+          "target": "followup"
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Follow-up is Requested before desk booking; accepting a received urgent referral creates an urgent receiving-doctor visit, with sender-visible reply and no public identities."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "DJ13",
+      "title": "Send a referral",
+      "group": "OPD clinic",
+      "roles": [
+        "doctor",
+        "resident"
+      ],
+      "collection": [
+        "referral"
+      ],
+      "description": "Select internal or external, department, consultant, purpose and urgency. Track receipt and the answer.",
+      "ui": "/#journey/DJ13",
+      "apis": [
+        "/api/commands/referral.send"
+      ],
+      "workflowCommands": [
+        {
+          "name": "referral.send",
+          "roles": [
+            "doctor",
+            "resident"
+          ],
+          "allowedFrom": [],
+          "target": null
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Follow-up is Requested before desk booking; accepting a received urgent referral creates an urgent receiving-doctor visit, with sender-visible reply and no public identities."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "DJ14",
+      "title": "Admission & OT requests",
+      "group": "OPD clinic",
+      "roles": [
+        "doctor",
+        "resident"
+      ],
+      "collection": [
+        "admission",
+        "operation"
+      ],
+      "description": "Request a bed or an operation. Neither is confirmed until the relevant desk allots it.",
+      "ui": "/#journey/DJ14",
+      "apis": [
+        "/api/commands/admission.request",
+        "/api/commands/operation.request",
+        "/api/commands/operation.respond"
+      ],
+      "workflowCommands": [
+        {
+          "name": "admission.request",
+          "roles": [
+            "doctor"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "operation.request",
+          "roles": [
+            "doctor"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "operation.respond",
+          "roles": [
+            "doctor"
+          ],
+          "allowedFrom": [
+            "Offered"
+          ],
+          "target": "operation"
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Admission request is separate from clean-bed allotment; resident ward order needs countersignature; nurse charts dose once against order; ward pharmacy issue bills IPD; danger SpO2 creates consultant alert."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "DJ15",
+      "title": "Hold, cancel or move",
+      "group": "OPD clinic",
+      "roles": [
+        "doctor",
+        "resident"
+      ],
+      "collection": [
+        "visit"
+      ],
+      "description": "Hold and resume, cancel with a reason, or move with patient agreement. Prior clinical records are never deleted.",
+      "ui": "/#journey/DJ15",
+      "apis": [
+        "/api/commands/visit.hold",
+        "/api/commands/visit.resume",
+        "/api/commands/visit.cancel",
+        "/api/commands/visit.move"
+      ],
+      "workflowCommands": [
+        {
+          "name": "visit.hold",
+          "roles": [
+            "doctor",
+            "resident"
+          ],
+          "allowedFrom": [
+            "Waiting",
+            "Called",
+            "In consultation"
+          ],
+          "target": "visit"
+        },
+        {
+          "name": "visit.resume",
+          "roles": [
+            "doctor",
+            "resident"
+          ],
+          "allowedFrom": [
+            "Held"
+          ],
+          "target": "visit"
+        },
+        {
+          "name": "visit.cancel",
+          "roles": [
+            "doctor",
+            "resident",
+            "desk",
+            "manager",
+            "patient"
+          ],
+          "allowedFrom": [
+            "Booked",
+            "Waiting",
+            "Held",
+            "Called",
+            "In consultation"
+          ],
+          "target": "visit"
+        },
+        {
+          "name": "visit.move",
+          "roles": [
+            "doctor",
+            "resident",
+            "desk",
+            "manager"
+          ],
+          "allowedFrom": [
+            "Booked",
+            "Waiting",
+            "Held",
+            "Called",
+            "In consultation",
+            "Missed"
+          ],
+          "target": "visit"
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Hold/resume preserves notes; generated PDF has credentials and follow-up; share uses registered destination; Done records once and calls the next token."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "DJ16",
+      "title": "Print & share",
+      "group": "OPD clinic",
+      "roles": [
+        "doctor",
+        "resident"
+      ],
+      "collection": [
+        "document",
+        "message",
+        "certificate"
+      ],
+      "description": "Generate watermarked PDFs, select note sections and share only to the registered mobile. Inspect simulated delivery and retry failures.",
+      "ui": "/#journey/DJ16",
+      "apis": [
+        "/api/documents/{id}/file",
+        "/api/commands/document.generate",
+        "/api/commands/document.share",
+        "/api/commands/certificate.issue",
+        "/api/commands/message.retry"
+      ],
+      "workflowCommands": [
+        {
+          "name": "document.generate",
+          "roles": [
+            "doctor",
+            "resident",
+            "desk",
+            "cashier",
+            "patient",
+            "nurse",
+            "manager",
+            "lab",
+            "pharmacist"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "document.share",
+          "roles": [
+            "doctor",
+            "resident"
+          ],
+          "allowedFrom": [
+            "Available"
+          ],
+          "target": "document"
+        },
+        {
+          "name": "certificate.issue",
+          "roles": [
+            "doctor"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "message.retry",
+          "roles": [
+            "desk",
+            "manager",
+            "doctor",
+            "resident"
+          ],
+          "allowedFrom": [
+            "Failed"
+          ],
+          "target": "message"
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Hold/resume preserves notes; generated PDF has credentials and follow-up; share uses registered destination; Done records once and calls the next token."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "DJ17",
+      "title": "Done & next",
+      "group": "OPD clinic",
+      "roles": [
+        "doctor",
+        "resident"
+      ],
+      "collection": [
+        "visit",
+        "note"
+      ],
+      "description": "Review the finish checklist, complete the visit once and call the next waiting token. Payment can remain pending.",
+      "ui": "/#journey/DJ17",
+      "apis": [
+        "/api/commands/visit.done"
+      ],
+      "workflowCommands": [
+        {
+          "name": "visit.done",
+          "roles": [
+            "doctor",
+            "resident"
+          ],
+          "allowedFrom": [
+            "In consultation",
+            "Held"
+          ],
+          "target": "visit"
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Hold/resume preserves notes; generated PDF has credentials and follow-up; share uses registered destination; Done records once and calls the next token."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "DJ18",
+      "title": "Ward rounds",
+      "group": "Ward rounds",
+      "roles": [
+        "doctor",
+        "resident"
+      ],
+      "collection": [
+        "admission",
+        "round",
+        "wardOrder",
+        "administration",
+        "nursing",
+        "vital"
+      ],
+      "description": "Read nursing charts, write a round note and sign new, changed or stopped ward orders. Nurses record administrations.",
+      "ui": "/#journey/DJ18",
+      "apis": [
+        "/api/commands/vital.acknowledge",
+        "/api/commands/rx.countersign",
+        "/api/commands/round.save",
+        "/api/commands/ward.order",
+        "/api/commands/ward.countersign",
+        "/api/commands/ward.stop"
+      ],
+      "workflowCommands": [
+        {
+          "name": "vital.acknowledge",
+          "roles": [
+            "doctor"
+          ],
+          "allowedFrom": [
+            "Recorded"
+          ],
+          "target": "vital"
+        },
+        {
+          "name": "rx.countersign",
+          "roles": [
+            "doctor"
+          ],
+          "allowedFrom": [
+            "Draft"
+          ],
+          "target": "rx"
+        },
+        {
+          "name": "round.save",
+          "roles": [
+            "doctor",
+            "resident"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "ward.order",
+          "roles": [
+            "doctor",
+            "resident"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "ward.countersign",
+          "roles": [
+            "doctor"
+          ],
+          "allowedFrom": [
+            "Draft"
+          ],
+          "target": "wardOrder"
+        },
+        {
+          "name": "ward.stop",
+          "roles": [
+            "doctor"
+          ],
+          "allowedFrom": [
+            "Active"
+          ],
+          "target": "wardOrder"
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Admission request is separate from clean-bed allotment; resident ward order needs countersignature; nurse charts dose once against order; ward pharmacy issue bills IPD; danger SpO2 creates consultant alert."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "DJ19",
+      "title": "Approve discharge",
+      "group": "Ward rounds",
+      "roles": [
+        "doctor",
+        "resident"
+      ],
+      "collection": [
+        "discharge",
+        "admission"
+      ],
+      "description": "A resident drafts; a consultant checks pending work and approves with a demo PIN. Billing and nursing both receive it.",
+      "ui": "/#journey/DJ19",
+      "apis": [
+        "/api/commands/discharge.draft",
+        "/api/commands/discharge.approve"
+      ],
+      "workflowCommands": [
+        {
+          "name": "discharge.draft",
+          "roles": [
+            "doctor",
+            "resident"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "discharge.approve",
+          "roles": [
+            "doctor"
+          ],
+          "allowedFrom": [
+            "Draft"
+          ],
+          "target": "discharge"
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Resident drafts but cannot approve discharge; wrong PIN fails; consultant approval creates simultaneous nursing/billing handoffs; approved scheme share yields zero patient due; clearance releases bed to Cleaning; insurer query resubmission and deduction require independent approval."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "DJ20",
+      "title": "Review results",
+      "group": "Through the day",
+      "roles": [
+        "doctor",
+        "resident"
+      ],
+      "collection": [
+        "result",
+        "review"
+      ],
+      "description": "Review released reports with action. A corrected report requires a new review while the original stays readable.",
+      "ui": "/#journey/DJ20",
+      "apis": [
+        "/api/commands/result.review"
+      ],
+      "workflowCommands": [
+        {
+          "name": "result.review",
+          "roles": [
+            "doctor"
+          ],
+          "allowedFrom": [
+            "Released"
+          ],
+          "target": "result"
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Urgent orders generate tariff bills; unpaid collection fails; payment failure leaves unpaid, success clears lab; wrong barcode and own verification fail; critical release appears in doctor/patient scopes; amendments preserve original review and require another review."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "DJ21",
+      "title": "Answer referrals",
+      "group": "Through the day",
+      "roles": [
+        "doctor",
+        "resident"
+      ],
+      "collection": [
+        "referral"
+      ],
+      "description": "Read, accept, decline or redirect incoming referrals. Acceptance creates authorized urgent work; a notification alone is not acceptance.",
+      "ui": "/#journey/DJ21",
+      "apis": [
+        "/api/commands/referral.see",
+        "/api/commands/referral.answer"
+      ],
+      "workflowCommands": [
+        {
+          "name": "referral.see",
+          "roles": [
+            "doctor"
+          ],
+          "allowedFrom": [
+            "Sent"
+          ],
+          "target": "referral"
+        },
+        {
+          "name": "referral.answer",
+          "roles": [
+            "doctor"
+          ],
+          "allowedFrom": [
+            "Sent",
+            "Seen"
+          ],
+          "target": "referral"
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Follow-up is Requested before desk booking; accepting a received urgent referral creates an urgent receiving-doctor visit, with sender-visible reply and no public identities."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "DJ22",
+      "title": "Pharmacy & lab questions",
+      "group": "Through the day",
+      "roles": [
+        "doctor",
+        "resident"
+      ],
+      "collection": [
+        "question",
+        "rx",
+        "order"
+      ],
+      "description": "Answer the exact version requested by pharmacy or the laboratory. A substitution needs explicit review and creates a new prescription version.",
+      "ui": "/#journey/DJ22",
+      "apis": [
+        "/api/commands/question.answer"
+      ],
+      "workflowCommands": [
+        {
+          "name": "question.answer",
+          "roles": [
+            "doctor"
+          ],
+          "allowedFrom": [
+            "Open"
+          ],
+          "target": "question"
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Allergy blocks unreviewed approval; pharmacist receives exact Rx; expired/mismatched batches fail; prescribing doctor approves substitution v2; dispense taxes reconcile; 4/10 return credits INR22.40 and restores batch."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "DJ23",
+      "title": "Video consultation",
+      "group": "Through the day",
+      "roles": [
+        "doctor",
+        "resident"
+      ],
+      "collection": [
+        "video",
+        "visit"
+      ],
+      "description": "Complete prechecks, wait, connect, drop/reconnect or switch to phone, and end with a duration. Notes use the normal workspace.",
+      "boundary": "Video and telephone are stateful simulations. No camera, microphone, recording or real calls.",
+      "ui": "/#journey/DJ23",
+      "apis": [
+        "/api/commands/video.start",
+        "/api/commands/video.transition"
+      ],
+      "workflowCommands": [
+        {
+          "name": "video.start",
+          "roles": [
+            "doctor"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "video.transition",
+          "roles": [
+            "doctor"
+          ],
+          "allowedFrom": [],
+          "target": "video"
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Simulated precheck/wait/join/connect/drop/reconnect/end transitions execute; drop preserves accepted note; duration is recorded and no media is requested."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "DJ24",
+      "title": "End the day",
+      "group": "End the day",
+      "roles": [
+        "doctor",
+        "resident"
+      ],
+      "collection": [
+        "presence",
+        "jobRun"
+      ],
+      "description": "Check pending local work, view the day summary, lock or sign out. The 22:00 IST presence reset excludes on-call and night duty.",
+      "ui": "/#journey/DJ24",
+      "apis": [
+        "/api/auth/logout",
+        "/api/auth/lock",
+        "/api/commands/job.presence"
+      ],
+      "workflowCommands": [
+        {
+          "name": "job.presence",
+          "roles": [
+            "superadmin"
+          ],
+          "allowedFrom": [],
+          "target": null
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "At simulated 22:00 IST regular doctor goes Offline, rostered night doctor stays Here; repeated reset has no duplicate run or effect; presence reset is separate from authentication."
+      ],
+      "browserBehavior": [
+        "390px/320px doctor layout has no document overflow, preserves Home/Patients/Calendar/More bottom tabs; locking removes patient content and PIN unlock restores workspace."
+      ],
+      "browserRendered": true
+    },
+    {
+      "id": "DJ25",
+      "title": "Sync & recovery",
+      "group": "End the day",
+      "roles": [
+        "doctor",
+        "resident"
+      ],
+      "collection": [],
+      "description": "Encrypted local queue survives reload. Retry the same operation; review conflicts side by side or keep the hospital version.",
+      "ui": "/#journey/DJ25",
+      "apis": [
+        "/api/receipts/{operationId}",
+        "/api/sync/device",
+        "/api/demo/fault"
+      ],
+      "workflowCommands": [],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Post-commit lost reply retries same ID with one effect; changed payload same ID conflicts; concurrent edit leaves local note unapplied until reviewed new action; actor mismatch and revoked permission reject; SQLite records/audit/receipts survive server restart."
+      ],
+      "browserBehavior": [
+        "Encrypted form draft and queued command survive reload while offline simulation is active; reconnect applies once; lost reply retries to one effect; conflict shows both versions and requires a newly reviewed action.",
+        "When an earlier note is rejected, a separately finalized test order still reaches the hospital; the rejected note remains visible for correction rather than falsely marking the whole visit synced."
+      ],
+      "browserRendered": true
+    },
+    {
+      "id": "DJ26",
+      "title": "ABHA & consent",
+      "group": "Anytime",
+      "roles": [
+        "doctor",
+        "resident"
+      ],
+      "collection": [
+        "abha"
+      ],
+      "description": "Record patient presence and consent, request a simulated OTP, verify, and withdraw consent without deleting its history.",
+      "boundary": "No ABDM exchange. Codes and identity numbers are synthetic.",
+      "ui": "/#journey/DJ26",
+      "apis": [
+        "/api/commands/abha.request",
+        "/api/commands/abha.verify",
+        "/api/commands/abha.withdraw"
+      ],
+      "workflowCommands": [
+        {
+          "name": "abha.request",
+          "roles": [
+            "doctor",
+            "resident",
+            "desk",
+            "manager"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "abha.verify",
+          "roles": [
+            "doctor",
+            "resident",
+            "desk",
+            "manager"
+          ],
+          "allowedFrom": [
+            "OTP sent"
+          ],
+          "target": "abha"
+        },
+        {
+          "name": "abha.withdraw",
+          "roles": [
+            "doctor",
+            "resident",
+            "patient"
+          ],
+          "allowedFrom": [
+            "Linked"
+          ],
+          "target": "abha"
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "ABHA linking refuses absent consent and wrong OTP; valid simulated OTP updates shared patient status; withdrawal retains consent history."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "DJ27",
+      "title": "Help & learning",
+      "group": "Anytime",
+      "roles": [
+        "doctor",
+        "resident"
+      ],
+      "collection": [
+        "help",
+        "article"
+      ],
+      "description": "Raise a help request, read replies and open published guides. Screenshot attachments are not accepted: use a privacy-safe text description.",
+      "ui": "/#journey/DJ27",
+      "apis": [
+        "/api/commands/help.create",
+        "/api/commands/article.read"
+      ],
+      "workflowCommands": [
+        {
+          "name": "help.create",
+          "roles": [
+            "doctor",
+            "resident"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "article.read",
+          "roles": [
+            "doctor",
+            "resident",
+            "desk",
+            "cashier",
+            "pharmacist",
+            "store",
+            "nurse",
+            "lab",
+            "ot",
+            "mrd",
+            "services",
+            "manager"
+          ],
+          "allowedFrom": [
+            "Published"
+          ],
+          "target": "article"
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Doctor help reaches support, reply returns, article publication reaches doctor and read/helpful state persists."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "AJ01",
+      "title": "Portal sign-in",
+      "group": "Access & people",
+      "roles": [
+        "superadmin",
+        "admin",
+        "head",
+        "it",
+        "auditor"
+      ],
+      "collection": [
+        "signin"
+      ],
+      "description": "A password plus simulated authenticator challenge is required. Role menus and idle expiry are enforced by the API.",
+      "boundary": "Authenticator enrollment and recovery codes are simulated, not production MFA.",
+      "ui": "/#journey/AJ01",
+      "apis": [
+        "/api/auth/start",
+        "/api/auth/otp",
+        "/api/auth/logout"
+      ],
+      "workflowCommands": [],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Access queue count rises; head cannot approve; temporary password shown only once; wrong MFA rejected; patient scope blocked until password change and profile confirmation; old temp is unusable and absent from persisted audit/receipts."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "AJ02",
+      "title": "Attention today",
+      "group": "Access & people",
+      "roles": [
+        "superadmin",
+        "admin",
+        "it"
+      ],
+      "collection": [
+        "access",
+        "help",
+        "device",
+        "jobRun"
+      ],
+      "description": "Counts are derived from real persisted requests, locks, invites, devices and jobs. Open a card to work on its queue.",
+      "ui": "/#journey/AJ02",
+      "apis": [
+        "/api/state"
+      ],
+      "workflowCommands": [],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Access queue count rises; head cannot approve; temporary password shown only once; wrong MFA rejected; patient scope blocked until password change and profile confirmation; old temp is unusable and absent from persisted audit/receipts."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "AJ03",
+      "title": "Access requests",
+      "group": "Access & people",
+      "roles": [
+        "superadmin",
+        "admin",
+        "head"
+      ],
+      "collection": [
+        "access"
+      ],
+      "description": "Approve unique staff identities or reject with a reason. The request role is a suggestion, not authority.",
+      "ui": "/#journey/AJ03",
+      "apis": [
+        "/api/commands/access.approve",
+        "/api/commands/access.reject"
+      ],
+      "workflowCommands": [
+        {
+          "name": "access.approve",
+          "roles": [
+            "superadmin",
+            "admin"
+          ],
+          "allowedFrom": [
+            "Requested"
+          ],
+          "target": "access"
+        },
+        {
+          "name": "access.reject",
+          "roles": [
+            "superadmin",
+            "admin"
+          ],
+          "allowedFrom": [
+            "Requested"
+          ],
+          "target": "access"
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Access queue count rises; head cannot approve; temporary password shown only once; wrong MFA rejected; patient scope blocked until password change and profile confirmation; old temp is unusable and absent from persisted audit/receipts."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "AJ04",
+      "title": "Onboard a doctor",
+      "group": "Access & people",
+      "roles": [
+        "superadmin",
+        "admin"
+      ],
+      "collection": [
+        "account"
+      ],
+      "description": "Create a unique doctor login and work setup. Show a temporary password once, then require a personal password and profile confirmation.",
+      "ui": "/#journey/AJ04",
+      "apis": [
+        "/api/commands/account.create"
+      ],
+      "workflowCommands": [
+        {
+          "name": "account.create",
+          "roles": [
+            "superadmin",
+            "admin"
+          ],
+          "allowedFrom": [],
+          "target": null
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Access queue count rises; head cannot approve; temporary password shown only once; wrong MFA rejected; patient scope blocked until password change and profile confirmation; old temp is unusable and absent from persisted audit/receipts."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "AJ05",
+      "title": "Bulk onboarding",
+      "group": "Access & people",
+      "roles": [
+        "superadmin",
+        "admin"
+      ],
+      "collection": [
+        "import"
+      ],
+      "description": "Preview CSV rows, fix or skip errors and create only valid unique accounts. Reimporting does not duplicate logins.",
+      "ui": "/#journey/AJ05",
+      "apis": [
+        "/api/commands/account.import",
+        "/api/commands/account.importCommit"
+      ],
+      "workflowCommands": [
+        {
+          "name": "account.import",
+          "roles": [
+            "superadmin",
+            "admin"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "account.importCommit",
+          "roles": [
+            "superadmin",
+            "admin"
+          ],
+          "allowedFrom": [
+            "Preview"
+          ],
+          "target": "import"
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "CSV preview creates no account; duplicate staff ID is identified; commit creates only Ready rows; reimport is duplicate-safe."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "AJ06",
+      "title": "Password recovery",
+      "group": "Access & people",
+      "roles": [
+        "superadmin",
+        "admin",
+        "it"
+      ],
+      "collection": [
+        "account"
+      ],
+      "description": "Record callback identity verification before issuing a one-time password. Never see or set the doctor’s chosen password.",
+      "ui": "/#journey/AJ06",
+      "apis": [
+        "/api/commands/account.reset"
+      ],
+      "workflowCommands": [
+        {
+          "name": "account.reset",
+          "roles": [
+            "superadmin",
+            "admin",
+            "it"
+          ],
+          "allowedFrom": [],
+          "target": "account"
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Password reset requires identity check and invalidates old password/sessions; five failed passwords lock; verified unlock restores the prior invited state."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "AJ07",
+      "title": "Unlock an account",
+      "group": "Access & people",
+      "roles": [
+        "superadmin",
+        "admin",
+        "it"
+      ],
+      "collection": [
+        "account"
+      ],
+      "description": "Inspect failed attempts, confirm identity and unlock with a reason. Both the lock and the unlock remain in the audit.",
+      "ui": "/#journey/AJ07",
+      "apis": [
+        "/api/commands/account.unlock"
+      ],
+      "workflowCommands": [
+        {
+          "name": "account.unlock",
+          "roles": [
+            "superadmin",
+            "admin",
+            "it"
+          ],
+          "allowedFrom": [
+            "Locked"
+          ],
+          "target": "account"
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Password reset requires identity check and invalidates old password/sessions; five failed passwords lock; verified unlock restores the prior invited state."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "AJ08",
+      "title": "Profiles & transfers",
+      "group": "Access & people",
+      "roles": [
+        "superadmin",
+        "admin",
+        "head"
+      ],
+      "collection": [
+        "account",
+        "correction"
+      ],
+      "description": "Preview profile changes and transfer open work before removing a department. Previous authors remain unchanged.",
+      "ui": "/#journey/AJ08",
+      "apis": [
+        "/api/commands/account.edit"
+      ],
+      "workflowCommands": [
+        {
+          "name": "account.edit",
+          "roles": [
+            "superadmin",
+            "admin"
+          ],
+          "allowedFrom": [],
+          "target": "account"
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Open clinical work blocks department transfer without receiver; handover preserves authors; suspension blocks login, reactivation restores; deactivation requires exact name and recovery plan; only super admin restores."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "AJ09",
+      "title": "Pause & reactivate",
+      "group": "Access & people",
+      "roles": [
+        "superadmin",
+        "admin"
+      ],
+      "collection": [
+        "account"
+      ],
+      "description": "Suspend with a reason and optional end date. Preserve local drafts; scheduled reactivation restores access.",
+      "ui": "/#journey/AJ09",
+      "apis": [
+        "/api/commands/account.suspend",
+        "/api/commands/account.reactivate"
+      ],
+      "workflowCommands": [
+        {
+          "name": "account.suspend",
+          "roles": [
+            "superadmin",
+            "admin"
+          ],
+          "allowedFrom": [
+            "Active"
+          ],
+          "target": "account"
+        },
+        {
+          "name": "account.reactivate",
+          "roles": [
+            "superadmin",
+            "admin"
+          ],
+          "allowedFrom": [
+            "Suspended",
+            "Deactivated"
+          ],
+          "target": "account"
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Open clinical work blocks department transfer without receiver; handover preserves authors; suspension blocks login, reactivation restores; deactivation requires exact name and recovery plan; only super admin restores."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "AJ10",
+      "title": "Offboard & hand over",
+      "group": "Access & people",
+      "roles": [
+        "superadmin",
+        "admin"
+      ],
+      "collection": [
+        "account"
+      ],
+      "description": "Choose a receiver, review open-work counts and unsent recovery, type the name to confirm and end sessions. Restore requires a super admin.",
+      "ui": "/#journey/AJ10",
+      "apis": [
+        "/api/commands/account.reactivate",
+        "/api/commands/account.deactivate",
+        "/api/commands/account.scheduleExit"
+      ],
+      "workflowCommands": [
+        {
+          "name": "account.reactivate",
+          "roles": [
+            "superadmin",
+            "admin"
+          ],
+          "allowedFrom": [
+            "Suspended",
+            "Deactivated"
+          ],
+          "target": "account"
+        },
+        {
+          "name": "account.deactivate",
+          "roles": [
+            "superadmin",
+            "admin"
+          ],
+          "allowedFrom": [],
+          "target": "account"
+        },
+        {
+          "name": "account.scheduleExit",
+          "roles": [
+            "superadmin",
+            "admin"
+          ],
+          "allowedFrom": [
+            "Active"
+          ],
+          "target": "account"
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Open clinical work blocks department transfer without receiver; handover preserves authors; suspension blocks login, reactivation restores; deactivation requires exact name and recovery plan; only super admin restores."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "AJ11",
+      "title": "Devices",
+      "group": "Access & people",
+      "roles": [
+        "superadmin",
+        "admin",
+        "it"
+      ],
+      "collection": [
+        "device"
+      ],
+      "description": "Request device sign-out or browser-app data wipe, track unsent work and enforce a minimum app version.",
+      "boundary": "This demo clears only its own browser cache when the browser next checks in. It cannot wipe OS files or an unreachable device.",
+      "ui": "/#journey/AJ11",
+      "apis": [
+        "/api/device/wipe-ack",
+        "/api/commands/device.signout",
+        "/api/commands/device.wipe",
+        "/api/commands/device.minimum"
+      ],
+      "workflowCommands": [
+        {
+          "name": "device.signout",
+          "roles": [
+            "superadmin",
+            "admin",
+            "it"
+          ],
+          "allowedFrom": [],
+          "target": "device"
+        },
+        {
+          "name": "device.wipe",
+          "roles": [
+            "superadmin",
+            "it"
+          ],
+          "allowedFrom": [],
+          "target": "device"
+        },
+        {
+          "name": "device.minimum",
+          "roles": [
+            "superadmin",
+            "it"
+          ],
+          "allowedFrom": [],
+          "target": null
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Hospital admin cannot wipe; IT remote sign-out blocks next request; wipe remains pending until device acknowledgement records unsent losses."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "AJ12",
+      "title": "Departments & sessions",
+      "group": "Hospital setup",
+      "roles": [
+        "superadmin",
+        "admin",
+        "head"
+      ],
+      "collection": [
+        "department",
+        "room",
+        "session",
+        "holiday"
+      ],
+      "description": "Manage departments, rooms, OPD timings and holidays. Used departments cannot be deleted.",
+      "ui": "/#journey/AJ12",
+      "apis": [
+        "/api/commands/department.save",
+        "/api/commands/room.save",
+        "/api/commands/session.save",
+        "/api/commands/holiday.save"
+      ],
+      "workflowCommands": [
+        {
+          "name": "department.save",
+          "roles": [
+            "superadmin",
+            "admin"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "room.save",
+          "roles": [
+            "superadmin",
+            "admin"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "session.save",
+          "roles": [
+            "superadmin",
+            "admin"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "holiday.save",
+          "roles": [
+            "superadmin",
+            "admin"
+          ],
+          "allowedFrom": [],
+          "target": null
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "New department reaches doctor catalog; sessions persist; a holiday blocks booking."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "AJ13",
+      "title": "On-call & 22:00 reset",
+      "group": "Hospital setup",
+      "roles": [
+        "superadmin",
+        "admin",
+        "head"
+      ],
+      "collection": [
+        "roster",
+        "jobRun"
+      ],
+      "description": "Publish duty assignments and run or inspect the idempotent nightly reset. On-call and night doctors retain their presence.",
+      "ui": "/#journey/AJ13",
+      "apis": [
+        "/api/commands/roster.save",
+        "/api/commands/roster.import",
+        "/api/commands/job.presence"
+      ],
+      "workflowCommands": [
+        {
+          "name": "roster.save",
+          "roles": [
+            "superadmin",
+            "admin"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "roster.import",
+          "roles": [
+            "superadmin",
+            "admin"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "job.presence",
+          "roles": [
+            "superadmin"
+          ],
+          "allowedFrom": [],
+          "target": null
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "At simulated 22:00 IST regular doctor goes Offline, rostered night doctor stays Here; repeated reset has no duplicate run or effect; presence reset is separate from authentication."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "AJ14",
+      "title": "Sets, templates & letterhead",
+      "group": "Hospital setup",
+      "roles": [
+        "superadmin",
+        "admin",
+        "head"
+      ],
+      "collection": [
+        "set",
+        "template",
+        "letterhead"
+      ],
+      "description": "Publish versioned department sets with a clinical reviewer; reject retired catalog items. Keep personal sets separate.",
+      "ui": "/#journey/AJ14",
+      "apis": [
+        "/api/commands/set.publish",
+        "/api/commands/template.publish",
+        "/api/commands/letterhead.publish"
+      ],
+      "workflowCommands": [
+        {
+          "name": "set.publish",
+          "roles": [
+            "superadmin",
+            "admin"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "template.publish",
+          "roles": [
+            "superadmin",
+            "admin"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "letterhead.publish",
+          "roles": [
+            "superadmin",
+            "admin"
+          ],
+          "allowedFrom": [],
+          "target": null
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Retired items block set publishing; republishing increments set version; templates and letterhead are persisted for the doctor/PDF surface."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "AJ15",
+      "title": "Routing & notification wording",
+      "group": "Hospital setup",
+      "roles": [
+        "superadmin",
+        "admin",
+        "head"
+      ],
+      "collection": [
+        "routing",
+        "wording"
+      ],
+      "description": "Route to a consultant, duty doctor or department queue. Lock-screen messages cannot contain identifying placeholders.",
+      "ui": "/#journey/AJ15",
+      "apis": [
+        "/api/commands/routing.save",
+        "/api/commands/wording.save"
+      ],
+      "workflowCommands": [
+        {
+          "name": "routing.save",
+          "roles": [
+            "superadmin",
+            "admin"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "wording.save",
+          "roles": [
+            "superadmin",
+            "admin"
+          ],
+          "allowedFrom": [],
+          "target": null
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Duty routing uses the rostered consultant; identifying lock-screen placeholders are rejected, generic wording is accepted."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "AJ16",
+      "title": "Features & announcements",
+      "group": "Hospital setup",
+      "roles": [
+        "superadmin",
+        "admin"
+      ],
+      "collection": [
+        "feature",
+        "announcement"
+      ],
+      "description": "Enable features by department or pilot group and publish audience-scoped, time-limited announcements without deleting drafts.",
+      "ui": "/#journey/AJ16",
+      "apis": [
+        "/api/commands/feature.save",
+        "/api/commands/announcement.publish"
+      ],
+      "workflowCommands": [
+        {
+          "name": "feature.save",
+          "roles": [
+            "superadmin",
+            "admin"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "announcement.publish",
+          "roles": [
+            "superadmin",
+            "admin"
+          ],
+          "allowedFrom": [],
+          "target": null
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Department video switch blocks API start without deleting work; audience-scoped announcement reaches doctors but not desk.",
+        "High-value stock count waits for approval; future MRP waits for separate approver and scheduler effective date; autonomous reminders record a run and respect patient opt-out; announcement dismissal is persona-scoped."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "AJ17",
+      "title": "Help desk & articles",
+      "group": "Support & insight",
+      "roles": [
+        "superadmin",
+        "admin",
+        "it"
+      ],
+      "collection": [
+        "help",
+        "article"
+      ],
+      "description": "Reply to requests and publish how-to guides. Support sees account/sync metadata, never patient charts.",
+      "ui": "/#journey/AJ17",
+      "apis": [
+        "/api/commands/help.reply",
+        "/api/commands/article.publish"
+      ],
+      "workflowCommands": [
+        {
+          "name": "help.reply",
+          "roles": [
+            "superadmin",
+            "admin",
+            "it"
+          ],
+          "allowedFrom": [
+            "Open",
+            "In progress"
+          ],
+          "target": "help"
+        },
+        {
+          "name": "article.publish",
+          "roles": [
+            "superadmin",
+            "admin",
+            "it"
+          ],
+          "allowedFrom": [],
+          "target": null
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Doctor help reaches support, reply returns, article publication reaches doctor and read/helpful state persists."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "AJ18",
+      "title": "Doctor activity",
+      "group": "Support & insight",
+      "roles": [
+        "superadmin",
+        "admin",
+        "head"
+      ],
+      "collection": [
+        "activity"
+      ],
+      "description": "Filter by month and department. Done visits count once; sign-in days are app activity, not attendance. Export the same aggregates.",
+      "ui": "/#journey/AJ18",
+      "apis": [
+        "/api/reports/activity"
+      ],
+      "workflowCommands": [],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Activity Done count matches daily calendar and CSV; CSV includes not-attendance note; referral report matches state; IT reports restricted to device/sync health."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "AJ19",
+      "title": "Operational reports",
+      "group": "Support & insight",
+      "roles": [
+        "superadmin",
+        "admin",
+        "head",
+        "it"
+      ],
+      "collection": [
+        "report"
+      ],
+      "description": "Date and department filters for referrals, orders, results, account work and sync health. Counts only.",
+      "ui": "/#journey/AJ19",
+      "apis": [
+        "/api/reports/{kind}"
+      ],
+      "workflowCommands": [],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Activity Done count matches daily calendar and CSV; CSV includes not-attendance note; referral report matches state; IT reports restricted to device/sync health."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "AJ20",
+      "title": "Audit trail",
+      "group": "Support & insight",
+      "roles": [
+        "superadmin",
+        "admin",
+        "auditor"
+      ],
+      "collection": [
+        "audit"
+      ],
+      "description": "Filter append-only events and export them. Clinical payloads are redacted from administrative views.",
+      "ui": "/#journey/AJ20",
+      "apis": [
+        "/api/audit"
+      ],
+      "workflowCommands": [],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Auditor can export append-only redacted audit; edit attempt is denied and logged; admin projection contains no clinical record types."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "AJ21",
+      "title": "Security policy",
+      "group": "Governance",
+      "roles": [
+        "superadmin"
+      ],
+      "collection": [
+        "policy"
+      ],
+      "description": "Set password, lockout and session limits above safe floors. Second check for administrators stays required.",
+      "ui": "/#journey/AJ21",
+      "apis": [
+        "/api/commands/policy.save"
+      ],
+      "workflowCommands": [
+        {
+          "name": "policy.save",
+          "roles": [
+            "superadmin"
+          ],
+          "allowedFrom": [],
+          "target": null
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Security floors reject a six-character password policy; staff identity uses AJ22; super-admin elevation remains pending until a different super admin approves; own-role change is refused."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "AJ22",
+      "title": "Admin & staff identities",
+      "group": "Governance",
+      "roles": [
+        "superadmin"
+      ],
+      "collection": [
+        "account",
+        "roleApproval"
+      ],
+      "description": "Manage named admin and staff identities. A second super admin approves elevation; nobody changes their own role.",
+      "boundary": "Staff identity management is added here for SD02/SO02 as a demo assumption.",
+      "ui": "/#journey/AJ22",
+      "apis": [
+        "/api/commands/staff.create",
+        "/api/commands/account.role",
+        "/api/commands/role.approve",
+        "/api/commands/account.remove"
+      ],
+      "workflowCommands": [
+        {
+          "name": "staff.create",
+          "roles": [
+            "superadmin"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "account.role",
+          "roles": [
+            "superadmin"
+          ],
+          "allowedFrom": [],
+          "target": "account"
+        },
+        {
+          "name": "role.approve",
+          "roles": [
+            "superadmin"
+          ],
+          "allowedFrom": [
+            "Pending"
+          ],
+          "target": "roleApproval"
+        },
+        {
+          "name": "account.remove",
+          "roles": [
+            "superadmin"
+          ],
+          "allowedFrom": [],
+          "target": "account"
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Security floors reject a six-character password policy; staff identity uses AJ22; super-admin elevation remains pending until a different super admin approves; own-role change is refused."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "AJ23",
+      "title": "System status",
+      "group": "Support & insight",
+      "roles": [
+        "superadmin",
+        "admin",
+        "head",
+        "it"
+      ],
+      "collection": [
+        "integration",
+        "jobRun"
+      ],
+      "description": "See simulated provider health, delivery failures and job history with an explicit next action.",
+      "ui": "/#journey/AJ23",
+      "apis": [
+        "/api/entities?type=integration"
+      ],
+      "workflowCommands": [],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Shared simulated provider outage is visible on system status with the ETHER support next action."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "SJ01",
+      "title": "My desk & counter",
+      "group": "Front desk",
+      "roles": [
+        "desk",
+        "cashier",
+        "pharmacist",
+        "store",
+        "nurse",
+        "lab",
+        "ot",
+        "mrd",
+        "services",
+        "manager"
+      ],
+      "collection": [
+        "counter"
+      ],
+      "description": "Sign in as yourself, choose your counter and printer, and keep drafts scoped to your account.",
+      "ui": "/#journey/SJ01",
+      "apis": [
+        "/api/auth/demo",
+        "/api/auth/start",
+        "/api/auth/otp",
+        "/api/commands/counter.choose"
+      ],
+      "workflowCommands": [
+        {
+          "name": "counter.choose",
+          "roles": [
+            "desk",
+            "cashier",
+            "pharmacist",
+            "store",
+            "nurse",
+            "lab",
+            "ot",
+            "mrd",
+            "services",
+            "manager"
+          ],
+          "allowedFrom": [],
+          "target": null
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Counter selection persists; duplicate registration and full Aadhaar are blocked; MLC masked record books/checks in exactly once; doctor receives the visit and reprinted slip is Duplicate."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "SJ02",
+      "title": "Patient registration",
+      "group": "Front desk",
+      "roles": [
+        "desk",
+        "manager"
+      ],
+      "collection": [
+        "patient"
+      ],
+      "description": "Search before registering. Confirm possible duplicates, preserve MLC details and store only Aadhaar’s last four digits.",
+      "ui": "/#journey/SJ02",
+      "apis": [
+        "/api/commands/abha.request",
+        "/api/commands/patient.register",
+        "/api/commands/patient.merge",
+        "/api/commands/patient.mlc"
+      ],
+      "workflowCommands": [
+        {
+          "name": "abha.request",
+          "roles": [
+            "doctor",
+            "resident",
+            "desk",
+            "manager"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "patient.register",
+          "roles": [
+            "desk",
+            "manager"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "patient.merge",
+          "roles": [
+            "manager"
+          ],
+          "allowedFrom": [
+            "Active"
+          ],
+          "target": "patient"
+        },
+        {
+          "name": "patient.mlc",
+          "roles": [
+            "manager"
+          ],
+          "allowedFrom": [],
+          "target": "patient"
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Counter selection persists; duplicate registration and full Aadhaar are blocked; MLC masked record books/checks in exactly once; doctor receives the visit and reprinted slip is Duplicate."
+      ],
+      "browserBehavior": [
+        "Front desk types a synthetic registration, books and checks in using actual browser forms; doctor independently sees the new patient; cashier payment form defaults exact due and changes bill to Paid."
+      ],
+      "browserRendered": true
+    },
+    {
+      "id": "SJ03",
+      "title": "Appointments & leave",
+      "group": "Front desk",
+      "roles": [
+        "desk",
+        "manager"
+      ],
+      "collection": [
+        "visit",
+        "availability",
+        "followup"
+      ],
+      "description": "Book a shared slot, move affected patients and accept follow-up requests. One confirmed visit per slot.",
+      "ui": "/#journey/SJ03",
+      "apis": [
+        "/api/slots",
+        "/api/commands/visit.cancel",
+        "/api/commands/visit.move",
+        "/api/commands/visit.book",
+        "/api/commands/availability.decide",
+        "/api/commands/followup.book",
+        "/api/commands/followup.decline"
+      ],
+      "workflowCommands": [
+        {
+          "name": "visit.cancel",
+          "roles": [
+            "doctor",
+            "resident",
+            "desk",
+            "manager",
+            "patient"
+          ],
+          "allowedFrom": [
+            "Booked",
+            "Waiting",
+            "Held",
+            "Called",
+            "In consultation"
+          ],
+          "target": "visit"
+        },
+        {
+          "name": "visit.move",
+          "roles": [
+            "doctor",
+            "resident",
+            "desk",
+            "manager"
+          ],
+          "allowedFrom": [
+            "Booked",
+            "Waiting",
+            "Held",
+            "Called",
+            "In consultation",
+            "Missed"
+          ],
+          "target": "visit"
+        },
+        {
+          "name": "visit.book",
+          "roles": [
+            "desk",
+            "manager",
+            "patient"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "availability.decide",
+          "roles": [
+            "desk",
+            "manager"
+          ],
+          "allowedFrom": [
+            "Requested"
+          ],
+          "target": "availability"
+        },
+        {
+          "name": "followup.book",
+          "roles": [
+            "desk",
+            "manager"
+          ],
+          "allowedFrom": [
+            "Requested"
+          ],
+          "target": "followup"
+        },
+        {
+          "name": "followup.decline",
+          "roles": [
+            "desk",
+            "manager"
+          ],
+          "allowedFrom": [
+            "Requested"
+          ],
+          "target": "followup"
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Availability request counts affected booking, remains requested before desk decision, approval blocks slots and marks needs-move; moving keeps history and clears the affected item."
+      ],
+      "browserBehavior": [
+        "Front desk types a synthetic registration, books and checks in using actual browser forms; doctor independently sees the new patient; cashier payment form defaults exact due and changes bill to Paid."
+      ],
+      "browserRendered": true
+    },
+    {
+      "id": "SJ04",
+      "title": "Check-in & tokens",
+      "group": "Front desk",
+      "roles": [
+        "desk",
+        "manager"
+      ],
+      "collection": [
+        "visit"
+      ],
+      "description": "Check in once, issue a per-session token, record priority with a reason and print watermarked slips.",
+      "ui": "/#journey/SJ04",
+      "apis": [
+        "/api/commands/document.generate",
+        "/api/commands/visit.checkin"
+      ],
+      "workflowCommands": [
+        {
+          "name": "document.generate",
+          "roles": [
+            "doctor",
+            "resident",
+            "desk",
+            "cashier",
+            "patient",
+            "nurse",
+            "manager",
+            "lab",
+            "pharmacist"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "visit.checkin",
+          "roles": [
+            "desk",
+            "manager"
+          ],
+          "allowedFrom": [
+            "Booked"
+          ],
+          "target": "visit"
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Counter selection persists; duplicate registration and full Aadhaar are blocked; MLC masked record books/checks in exactly once; doctor receives the visit and reprinted slip is Duplicate."
+      ],
+      "browserBehavior": [
+        "Front desk types a synthetic registration, books and checks in using actual browser forms; doctor independently sees the new patient; cashier payment form defaults exact due and changes bill to Paid."
+      ],
+      "browserRendered": true
+    },
+    {
+      "id": "SJ05",
+      "title": "Waiting-room board",
+      "group": "Front desk",
+      "roles": [
+        "desk",
+        "manager"
+      ],
+      "collection": [
+        "board",
+        "presence"
+      ],
+      "description": "Configure token-only boards, room views and doctors. The gated board endpoint never sends patient identifiers.",
+      "ui": "/#journey/SJ05",
+      "apis": [
+        "/api/board/{id}",
+        "/api/commands/board.save",
+        "/api/commands/board.toggle"
+      ],
+      "workflowCommands": [
+        {
+          "name": "board.save",
+          "roles": [
+            "desk",
+            "manager"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "board.toggle",
+          "roles": [
+            "desk",
+            "manager"
+          ],
+          "allowedFrom": [],
+          "target": "board"
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Scoped search refuses another doctor’s visit; presence reaches the desk; call updates a token-only public board; identity confirmation opens consultation."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "SJ06",
+      "title": "Patient documents",
+      "group": "Front desk",
+      "roles": [
+        "desk",
+        "cashier",
+        "nurse",
+        "mrd",
+        "manager"
+      ],
+      "collection": [
+        "document"
+      ],
+      "description": "Upload synthetic PDF/PNG/JPEG files, choose visibility and mark wrong files with a reason. Aadhaar images are prohibited.",
+      "boundary": "Scanner/webcam capture is represented by uploading a synthetic file. No OS photo-gallery guarantees.",
+      "ui": "/#journey/SJ06",
+      "apis": [
+        "/api/documents/{id}/file",
+        "/api/commands/document.upload",
+        "/api/commands/document.void"
+      ],
+      "workflowCommands": [
+        {
+          "name": "document.upload",
+          "roles": [
+            "doctor",
+            "resident",
+            "desk",
+            "cashier",
+            "nurse",
+            "mrd",
+            "manager",
+            "patient"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "document.void",
+          "roles": [
+            "desk",
+            "cashier",
+            "nurse",
+            "mrd",
+            "manager"
+          ],
+          "allowedFrom": [
+            "Available"
+          ],
+          "target": "document"
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Authenticated sample upload becomes doctor-visible; Aadhaar filename is rejected; filed-by-mistake retains history and hides the file from doctor scope."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "SJ07",
+      "title": "Billing & payment",
+      "group": "Billing & insurance",
+      "roles": [
+        "desk",
+        "cashier",
+        "manager"
+      ],
+      "collection": [
+        "bill",
+        "payment"
+      ],
+      "description": "Charges come from orders and effective tariffs. Discount approval, split payments, receipts and lab clearance are distinct.",
+      "ui": "/#journey/SJ07",
+      "apis": [
+        "/api/commands/document.generate",
+        "/api/commands/bill.service",
+        "/api/commands/bill.discount",
+        "/api/commands/bill.pay",
+        "/api/commands/admission.advance"
+      ],
+      "workflowCommands": [
+        {
+          "name": "document.generate",
+          "roles": [
+            "doctor",
+            "resident",
+            "desk",
+            "cashier",
+            "patient",
+            "nurse",
+            "manager",
+            "lab",
+            "pharmacist"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "bill.service",
+          "roles": [
+            "desk",
+            "cashier",
+            "manager"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "bill.discount",
+          "roles": [
+            "cashier",
+            "manager"
+          ],
+          "allowedFrom": [
+            "Unpaid"
+          ],
+          "target": "bill"
+        },
+        {
+          "name": "bill.pay",
+          "roles": [
+            "desk",
+            "cashier",
+            "pharmacist",
+            "manager",
+            "patient"
+          ],
+          "allowedFrom": [
+            "Unpaid",
+            "Part paid"
+          ],
+          "target": "bill"
+        },
+        {
+          "name": "admission.advance",
+          "roles": [
+            "cashier",
+            "manager"
+          ],
+          "allowedFrom": [
+            "Requested",
+            "Admitted"
+          ],
+          "target": "admission"
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Urgent orders generate tariff bills; unpaid collection fails; payment failure leaves unpaid, success clears lab; wrong barcode and own verification fail; critical release appears in doctor/patient scopes; amendments preserve original review and require another review.",
+        "Self-pay final bill applies an actually paid INR100 advance and prorated bed intervals; gate pass is refused while the remaining bill is unpaid, then accepted after payment."
+      ],
+      "browserBehavior": [
+        "Front desk types a synthetic registration, books and checks in using actual browser forms; doctor independently sees the new patient; cashier payment form defaults exact due and changes bill to Paid."
+      ],
+      "browserRendered": true
+    },
+    {
+      "id": "SJ08",
+      "title": "Insurance & claims",
+      "group": "Billing & insurance",
+      "roles": [
+        "cashier",
+        "manager"
+      ],
+      "collection": [
+        "claim"
+      ],
+      "description": "Check simulated eligibility, send pre-authorisation, answer insurer queries and settle with an approved deduction owner.",
+      "ui": "/#journey/SJ08",
+      "apis": [
+        "/api/commands/claim.create",
+        "/api/commands/claim.send",
+        "/api/commands/claim.question",
+        "/api/commands/claim.response",
+        "/api/commands/claim.settle",
+        "/api/commands/claim.final"
+      ],
+      "workflowCommands": [
+        {
+          "name": "claim.create",
+          "roles": [
+            "cashier",
+            "manager"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "claim.send",
+          "roles": [
+            "cashier",
+            "manager"
+          ],
+          "allowedFrom": [
+            "Draft",
+            "Query raised"
+          ],
+          "target": "claim"
+        },
+        {
+          "name": "claim.question",
+          "roles": [
+            "cashier",
+            "manager"
+          ],
+          "allowedFrom": [
+            "Query raised"
+          ],
+          "target": "claim"
+        },
+        {
+          "name": "claim.response",
+          "roles": [
+            "cashier",
+            "manager"
+          ],
+          "allowedFrom": [
+            "Sent"
+          ],
+          "target": "claim"
+        },
+        {
+          "name": "claim.settle",
+          "roles": [
+            "cashier",
+            "manager"
+          ],
+          "allowedFrom": [
+            "Approved",
+            "Claim sent"
+          ],
+          "target": "claim"
+        },
+        {
+          "name": "claim.final",
+          "roles": [
+            "cashier",
+            "manager"
+          ],
+          "allowedFrom": [
+            "Approved"
+          ],
+          "target": "claim"
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Resident drafts but cannot approve discharge; wrong PIN fails; consultant approval creates simultaneous nursing/billing handoffs; approved scheme share yields zero patient due; clearance releases bed to Cleaning; insurer query resubmission and deduction require independent approval."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "SJ09",
+      "title": "Refunds & day end",
+      "group": "Billing & insurance",
+      "roles": [
+        "cashier",
+        "manager",
+        "pharmacist",
+        "desk"
+      ],
+      "collection": [
+        "refund",
+        "counterClose",
+        "payment"
+      ],
+      "description": "Request line-level refunds with approval; reconcile denominations and close your counter. No more collections after closing.",
+      "ui": "/#journey/SJ09",
+      "apis": [
+        "/api/commands/refund.request",
+        "/api/commands/counter.close"
+      ],
+      "workflowCommands": [
+        {
+          "name": "refund.request",
+          "roles": [
+            "cashier",
+            "manager",
+            "pharmacist"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "counter.close",
+          "roles": [
+            "cashier",
+            "desk",
+            "pharmacist",
+            "manager"
+          ],
+          "allowedFrom": [],
+          "target": null
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Discount waits for independent approval; split payment yields one receipt; refund capped at net paid line and retains original modes; unexplained cash difference rejected, approved closure blocks collection; net report equals receipts less refund."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "SJ10",
+      "title": "Pharmacy dispensing",
+      "group": "Pharmacy & stores",
+      "roles": [
+        "pharmacist"
+      ],
+      "collection": [
+        "rx",
+        "dispense",
+        "question"
+      ],
+      "description": "Load an approved prescription, choose unexpired stock, dispense partially and request same-salt substitutions. GST and batches follow the sale.",
+      "ui": "/#journey/SJ10",
+      "apis": [
+        "/api/commands/document.generate",
+        "/api/commands/pharmacy.receive",
+        "/api/commands/pharmacy.question",
+        "/api/commands/pharmacy.dispense"
+      ],
+      "workflowCommands": [
+        {
+          "name": "document.generate",
+          "roles": [
+            "doctor",
+            "resident",
+            "desk",
+            "cashier",
+            "patient",
+            "nurse",
+            "manager",
+            "lab",
+            "pharmacist"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "pharmacy.receive",
+          "roles": [
+            "pharmacist"
+          ],
+          "allowedFrom": [
+            "Sent"
+          ],
+          "target": "rx"
+        },
+        {
+          "name": "pharmacy.question",
+          "roles": [
+            "pharmacist"
+          ],
+          "allowedFrom": [
+            "Sent",
+            "Received",
+            "Part dispensed"
+          ],
+          "target": "rx"
+        },
+        {
+          "name": "pharmacy.dispense",
+          "roles": [
+            "pharmacist"
+          ],
+          "allowedFrom": [
+            "Sent",
+            "Received",
+            "Part dispensed"
+          ],
+          "target": "rx"
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Allergy blocks unreviewed approval; pharmacist receives exact Rx; expired/mismatched batches fail; prescribing doctor approves substitution v2; dispense taxes reconcile; 4/10 return credits INR22.40 and restores batch."
+      ],
+      "browserBehavior": [
+        "Browser users scoped-search/open patient, confirm identity, type/review/save note, review medicine and send Rx; independent pharmacy browser acknowledges and dispenses; doctor sees fulfillment."
+      ],
+      "browserRendered": true
+    },
+    {
+      "id": "SJ11",
+      "title": "Returns & ward issues",
+      "group": "Pharmacy & stores",
+      "roles": [
+        "pharmacist"
+      ],
+      "collection": [
+        "return",
+        "wardRequest",
+        "dispense"
+      ],
+      "description": "Return only eligible quantities to their original batch or damaged stock. Active ward issues add to the IPD bill.",
+      "ui": "/#journey/SJ11",
+      "apis": [
+        "/api/commands/document.generate",
+        "/api/commands/pharmacy.return",
+        "/api/commands/ward.issue"
+      ],
+      "workflowCommands": [
+        {
+          "name": "document.generate",
+          "roles": [
+            "doctor",
+            "resident",
+            "desk",
+            "cashier",
+            "patient",
+            "nurse",
+            "manager",
+            "lab",
+            "pharmacist"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "pharmacy.return",
+          "roles": [
+            "pharmacist"
+          ],
+          "allowedFrom": [
+            "Issued"
+          ],
+          "target": "dispense"
+        },
+        {
+          "name": "ward.issue",
+          "roles": [
+            "pharmacist"
+          ],
+          "allowedFrom": [
+            "Requested",
+            "Part issued"
+          ],
+          "target": "wardRequest"
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Allergy blocks unreviewed approval; pharmacist receives exact Rx; expired/mismatched batches fail; prescribing doctor approves substitution v2; dispense taxes reconcile; 4/10 return credits INR22.40 and restores batch."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "SJ12",
+      "title": "Requisition to receipt",
+      "group": "Pharmacy & stores",
+      "roles": [
+        "pharmacist",
+        "store",
+        "manager"
+      ],
+      "collection": [
+        "requisition",
+        "purchase",
+        "grn",
+        "stockTransfer"
+      ],
+      "description": "Requisition, approved PO, checked GRN, issue and pharmacy acceptance update stock exactly once.",
+      "ui": "/#journey/SJ12",
+      "apis": [
+        "/api/commands/requisition.create",
+        "/api/commands/purchase.create",
+        "/api/commands/purchase.send",
+        "/api/commands/grn.receive",
+        "/api/commands/stock.issue",
+        "/api/commands/stock.accept"
+      ],
+      "workflowCommands": [
+        {
+          "name": "requisition.create",
+          "roles": [
+            "pharmacist",
+            "store",
+            "manager"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "purchase.create",
+          "roles": [
+            "store",
+            "manager"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "purchase.send",
+          "roles": [
+            "store",
+            "manager"
+          ],
+          "allowedFrom": [
+            "Approved"
+          ],
+          "target": "purchase"
+        },
+        {
+          "name": "grn.receive",
+          "roles": [
+            "store"
+          ],
+          "allowedFrom": [
+            "Sent",
+            "Part received"
+          ],
+          "target": "purchase"
+        },
+        {
+          "name": "stock.issue",
+          "roles": [
+            "store"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "stock.accept",
+          "roles": [
+            "pharmacist"
+          ],
+          "allowedFrom": [
+            "In transit"
+          ],
+          "target": "stockTransfer"
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "INR82000 PO cannot send without independent approval; overreceipt rejected; MRP mismatch held without stock; receipt/issue/acceptance adds exactly 100 once to pharmacy."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "SJ13",
+      "title": "Stock, vendors & assets",
+      "group": "Pharmacy & stores",
+      "roles": [
+        "store",
+        "manager"
+      ],
+      "collection": [
+        "batch",
+        "vendor",
+        "asset",
+        "writeoff",
+        "stockCount"
+      ],
+      "description": "Inspect expiry and reorder levels, request approved write-offs, block vendors and track equipment service.",
+      "ui": "/#journey/SJ13",
+      "apis": [
+        "/api/commands/requisition.create",
+        "/api/commands/stock.writeoff",
+        "/api/commands/stock.reconcile",
+        "/api/commands/vendor.save",
+        "/api/commands/vendor.block",
+        "/api/commands/asset.save",
+        "/api/commands/asset.service"
+      ],
+      "workflowCommands": [
+        {
+          "name": "requisition.create",
+          "roles": [
+            "pharmacist",
+            "store",
+            "manager"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "stock.writeoff",
+          "roles": [
+            "store",
+            "manager"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "stock.reconcile",
+          "roles": [
+            "store"
+          ],
+          "allowedFrom": [],
+          "target": "batch"
+        },
+        {
+          "name": "vendor.save",
+          "roles": [
+            "store",
+            "manager"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "vendor.block",
+          "roles": [
+            "store",
+            "manager"
+          ],
+          "allowedFrom": [
+            "Active"
+          ],
+          "target": "vendor"
+        },
+        {
+          "name": "asset.save",
+          "roles": [
+            "store",
+            "manager"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "asset.service",
+          "roles": [
+            "store",
+            "services"
+          ],
+          "allowedFrom": [],
+          "target": "asset"
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Expired write-off waits for approval and reduces stock only once; blocked vendor cannot receive new PO; maintenance asset status and service history persist.",
+        "High-value stock count waits for approval; future MRP waits for separate approver and scheduler effective date; autonomous reminders record a run and respect patient opt-out; announcement dismissal is persona-scoped."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "SJ14",
+      "title": "Sample collection",
+      "group": "Laboratory",
+      "roles": [
+        "lab"
+      ],
+      "collection": [
+        "order",
+        "sample",
+        "question"
+      ],
+      "description": "Only cleared orders can be collected. Label, accept or reject, recollect and dispatch with full history.",
+      "ui": "/#journey/SJ14",
+      "apis": [
+        "/api/commands/document.generate",
+        "/api/commands/sample.collect",
+        "/api/commands/sample.defer",
+        "/api/commands/sample.resume",
+        "/api/commands/sample.accept",
+        "/api/commands/sample.reject",
+        "/api/commands/sample.dispatch",
+        "/api/commands/lab.question"
+      ],
+      "workflowCommands": [
+        {
+          "name": "document.generate",
+          "roles": [
+            "doctor",
+            "resident",
+            "desk",
+            "cashier",
+            "patient",
+            "nurse",
+            "manager",
+            "lab",
+            "pharmacist"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "sample.collect",
+          "roles": [
+            "lab"
+          ],
+          "allowedFrom": [
+            "Cleared",
+            "Recollection needed"
+          ],
+          "target": "order"
+        },
+        {
+          "name": "sample.defer",
+          "roles": [
+            "lab"
+          ],
+          "allowedFrom": [
+            "Cleared",
+            "Recollection needed"
+          ],
+          "target": "order"
+        },
+        {
+          "name": "sample.resume",
+          "roles": [
+            "lab"
+          ],
+          "allowedFrom": [
+            "Collection held"
+          ],
+          "target": "order"
+        },
+        {
+          "name": "sample.accept",
+          "roles": [
+            "lab"
+          ],
+          "allowedFrom": [
+            "Collected"
+          ],
+          "target": "sample"
+        },
+        {
+          "name": "sample.reject",
+          "roles": [
+            "lab"
+          ],
+          "allowedFrom": [
+            "Collected"
+          ],
+          "target": "sample"
+        },
+        {
+          "name": "sample.dispatch",
+          "roles": [
+            "lab"
+          ],
+          "allowedFrom": [
+            "Accepted"
+          ],
+          "target": "sample"
+        },
+        {
+          "name": "lab.question",
+          "roles": [
+            "lab"
+          ],
+          "allowedFrom": [],
+          "target": "order"
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Urgent orders generate tariff bills; unpaid collection fails; payment failure leaves unpaid, success clears lab; wrong barcode and own verification fail; critical release appears in doctor/patient scopes; amendments preserve original review and require another review.",
+        "Skip retains token; three calls mark Missed and explicit identity check can reopen; collection hold/resume persists; sample label stores actual scan code; narrative-only imaging verifies/releases independently."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "SJ15",
+      "title": "Results & verification",
+      "group": "Laboratory",
+      "roles": [
+        "lab"
+      ],
+      "collection": [
+        "result",
+        "sample"
+      ],
+      "description": "Enter a result, have a different authorized verifier sign, release and alert. Corrections create new versions and reviews.",
+      "ui": "/#journey/SJ15",
+      "apis": [
+        "/api/commands/result.enter",
+        "/api/commands/result.verify",
+        "/api/commands/result.release",
+        "/api/commands/result.amend",
+        "/api/commands/result.call"
+      ],
+      "workflowCommands": [
+        {
+          "name": "result.enter",
+          "roles": [
+            "lab"
+          ],
+          "allowedFrom": [
+            "Accepted",
+            "Dispatched"
+          ],
+          "target": "sample"
+        },
+        {
+          "name": "result.verify",
+          "roles": [
+            "lab"
+          ],
+          "allowedFrom": [
+            "Entered"
+          ],
+          "target": "result"
+        },
+        {
+          "name": "result.release",
+          "roles": [
+            "lab"
+          ],
+          "allowedFrom": [
+            "Verified"
+          ],
+          "target": "result"
+        },
+        {
+          "name": "result.amend",
+          "roles": [
+            "lab"
+          ],
+          "allowedFrom": [
+            "Released"
+          ],
+          "target": "result"
+        },
+        {
+          "name": "result.call",
+          "roles": [
+            "lab"
+          ],
+          "allowedFrom": [
+            "Released"
+          ],
+          "target": "result"
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Urgent orders generate tariff bills; unpaid collection fails; payment failure leaves unpaid, success clears lab; wrong barcode and own verification fail; critical release appears in doctor/patient scopes; amendments preserve original review and require another review.",
+        "Skip retains token; three calls mark Missed and explicit identity check can reopen; collection hold/resume persists; sample label stores actual scan code; narrative-only imaging verifies/releases independently."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "SJ16",
+      "title": "Admissions",
+      "group": "Wards & theatre",
+      "roles": [
+        "desk",
+        "nurse",
+        "manager"
+      ],
+      "collection": [
+        "admission",
+        "bed"
+      ],
+      "description": "Allot a clean free bed to a doctor request or emergency. Emergency care does not wait for an advance.",
+      "ui": "/#journey/SJ16",
+      "apis": [
+        "/api/commands/document.generate",
+        "/api/commands/admission.emergency",
+        "/api/commands/bed.reserve",
+        "/api/commands/admission.admit",
+        "/api/commands/admission.advance"
+      ],
+      "workflowCommands": [
+        {
+          "name": "document.generate",
+          "roles": [
+            "doctor",
+            "resident",
+            "desk",
+            "cashier",
+            "patient",
+            "nurse",
+            "manager",
+            "lab",
+            "pharmacist"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "admission.emergency",
+          "roles": [
+            "desk",
+            "nurse",
+            "manager"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "bed.reserve",
+          "roles": [
+            "desk",
+            "nurse",
+            "manager"
+          ],
+          "allowedFrom": [
+            "Free"
+          ],
+          "target": "bed"
+        },
+        {
+          "name": "admission.admit",
+          "roles": [
+            "desk",
+            "nurse",
+            "manager"
+          ],
+          "allowedFrom": [
+            "Requested"
+          ],
+          "target": "admission"
+        },
+        {
+          "name": "admission.advance",
+          "roles": [
+            "cashier",
+            "manager"
+          ],
+          "allowedFrom": [
+            "Requested",
+            "Admitted"
+          ],
+          "target": "admission"
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Admission request is separate from clean-bed allotment; resident ward order needs countersignature; nurse charts dose once against order; ward pharmacy issue bills IPD; danger SpO2 creates consultant alert."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "SJ17",
+      "title": "Bed board & transfers",
+      "group": "Wards & theatre",
+      "roles": [
+        "nurse",
+        "services",
+        "manager"
+      ],
+      "collection": [
+        "bed",
+        "admission"
+      ],
+      "description": "Transfer with a reason, leave the old bed Cleaning and record housekeeping completion. ICU needs a doctor order.",
+      "ui": "/#journey/SJ17",
+      "apis": [
+        "/api/commands/bed.transfer",
+        "/api/commands/bed.clean"
+      ],
+      "workflowCommands": [
+        {
+          "name": "bed.transfer",
+          "roles": [
+            "nurse"
+          ],
+          "allowedFrom": [
+            "Admitted"
+          ],
+          "target": "admission"
+        },
+        {
+          "name": "bed.clean",
+          "roles": [
+            "services"
+          ],
+          "allowedFrom": [
+            "Cleaning"
+          ],
+          "target": "bed"
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "ICU move fails without signed order; valid move changes location, retains rate intervals, and sets old bed Cleaning until housekeeping releases it."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "SJ18",
+      "title": "Nursing charts",
+      "group": "Wards & theatre",
+      "roles": [
+        "nurse",
+        "manager"
+      ],
+      "collection": [
+        "wardOrder",
+        "administration",
+        "nursing",
+        "vital",
+        "wardRequest"
+      ],
+      "description": "Chart vitals, ordered doses and handover notes. Unsafe readings alert the consultant; nurses cannot prescribe.",
+      "ui": "/#journey/SJ18",
+      "apis": [
+        "/api/commands/vital.record",
+        "/api/commands/ward.request",
+        "/api/commands/nursing.note",
+        "/api/commands/dose.record"
+      ],
+      "workflowCommands": [
+        {
+          "name": "vital.record",
+          "roles": [
+            "doctor",
+            "resident",
+            "nurse"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "ward.request",
+          "roles": [
+            "nurse"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "nursing.note",
+          "roles": [
+            "nurse"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "dose.record",
+          "roles": [
+            "nurse"
+          ],
+          "allowedFrom": [
+            "Active"
+          ],
+          "target": "wardOrder"
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Admission request is separate from clean-bed allotment; resident ward order needs countersignature; nurse charts dose once against order; ward pharmacy issue bills IPD; danger SpO2 creates consultant alert."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "SJ19",
+      "title": "Discharge & gate pass",
+      "group": "Wards & theatre",
+      "roles": [
+        "nurse",
+        "cashier",
+        "manager"
+      ],
+      "collection": [
+        "discharge",
+        "admission",
+        "bill"
+      ],
+      "description": "Complete clearances after clinical approval, settle or approve credit and release the bed to Cleaning.",
+      "ui": "/#journey/SJ19",
+      "apis": [
+        "/api/commands/document.generate",
+        "/api/commands/discharge.clear",
+        "/api/commands/discharge.bill",
+        "/api/commands/discharge.credit",
+        "/api/commands/discharge.release"
+      ],
+      "workflowCommands": [
+        {
+          "name": "document.generate",
+          "roles": [
+            "doctor",
+            "resident",
+            "desk",
+            "cashier",
+            "patient",
+            "nurse",
+            "manager",
+            "lab",
+            "pharmacist"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "discharge.clear",
+          "roles": [
+            "nurse"
+          ],
+          "allowedFrom": [
+            "Approved"
+          ],
+          "target": "discharge"
+        },
+        {
+          "name": "discharge.bill",
+          "roles": [
+            "cashier",
+            "manager"
+          ],
+          "allowedFrom": [
+            "Approved",
+            "Nursing cleared"
+          ],
+          "target": "discharge"
+        },
+        {
+          "name": "discharge.credit",
+          "roles": [
+            "cashier",
+            "manager"
+          ],
+          "allowedFrom": [
+            "Admitted"
+          ],
+          "target": "admission"
+        },
+        {
+          "name": "discharge.release",
+          "roles": [
+            "nurse",
+            "cashier",
+            "manager"
+          ],
+          "allowedFrom": [
+            "Admitted"
+          ],
+          "target": "admission"
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Resident drafts but cannot approve discharge; wrong PIN fails; consultant approval creates simultaneous nursing/billing handoffs; approved scheme share yields zero patient due; clearance releases bed to Cleaning; insurer query resubmission and deduction require independent approval.",
+        "Self-pay final bill applies an actually paid INR100 advance and prorated bed intervals; gate pass is refused while the remaining bill is unpaid, then accepted after payment."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "SJ20",
+      "title": "Theatre scheduling",
+      "group": "Wards & theatre",
+      "roles": [
+        "ot",
+        "nurse"
+      ],
+      "collection": [
+        "operation"
+      ],
+      "description": "Book a non-overlapping theatre and team, satisfy pre-op checks, then record theatre, recovery and ward times.",
+      "ui": "/#journey/SJ20",
+      "apis": [
+        "/api/commands/operation.schedule",
+        "/api/commands/operation.checklist",
+        "/api/commands/operation.advance"
+      ],
+      "workflowCommands": [
+        {
+          "name": "operation.schedule",
+          "roles": [
+            "ot"
+          ],
+          "allowedFrom": [
+            "Requested",
+            "Reschedule requested"
+          ],
+          "target": "operation"
+        },
+        {
+          "name": "operation.checklist",
+          "roles": [
+            "ot",
+            "nurse"
+          ],
+          "allowedFrom": [
+            "Scheduled"
+          ],
+          "target": "operation"
+        },
+        {
+          "name": "operation.advance",
+          "roles": [
+            "ot"
+          ],
+          "allowedFrom": [
+            "Scheduled",
+            "In theatre",
+            "Recovery"
+          ],
+          "target": "operation"
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Overlapping theatre/surgeon booking is refused; consent and pre-op checks gate entry; theatre stages and charges persist; vaccine sets next due; desk prints only a doctor-issued serial certificate."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "SJ21",
+      "title": "Day care",
+      "group": "Wards & theatre",
+      "roles": [
+        "nurse",
+        "manager"
+      ],
+      "collection": [
+        "daycare"
+      ],
+      "description": "Start a same-day session, preserve charts and charges on IPD conversion, or finish and bill the package once.",
+      "ui": "/#journey/SJ21",
+      "apis": [
+        "/api/commands/daycare.start",
+        "/api/commands/daycare.finish"
+      ],
+      "workflowCommands": [
+        {
+          "name": "daycare.start",
+          "roles": [
+            "nurse"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "daycare.finish",
+          "roles": [
+            "nurse"
+          ],
+          "allowedFrom": [
+            "Active"
+          ],
+          "target": "daycare"
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Day-care conversion assigns IPD location while preserving the original admission/chart links and package charge without rebilling."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "SJ22",
+      "title": "Registers & consent",
+      "group": "Clinical services",
+      "roles": [
+        "desk",
+        "nurse",
+        "manager"
+      ],
+      "collection": [
+        "register",
+        "consent",
+        "certificate"
+      ],
+      "description": "Record vaccine batches and next doses, infection actions, signed consents and doctor-issued serial certificates.",
+      "ui": "/#journey/SJ22",
+      "apis": [
+        "/api/commands/register.record",
+        "/api/commands/consent.sign",
+        "/api/commands/certificate.print"
+      ],
+      "workflowCommands": [
+        {
+          "name": "register.record",
+          "roles": [
+            "nurse"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "consent.sign",
+          "roles": [
+            "desk",
+            "nurse"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "certificate.print",
+          "roles": [
+            "desk",
+            "nurse"
+          ],
+          "allowedFrom": [
+            "Issued"
+          ],
+          "target": "certificate"
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Overlapping theatre/surgeon booking is refused; consent and pre-op checks gate entry; theatre stages and charges persist; vaccine sets next due; desk prints only a doctor-issued serial certificate."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "SJ23",
+      "title": "Health packages",
+      "group": "Clinical services",
+      "roles": [
+        "desk",
+        "cashier",
+        "manager"
+      ],
+      "collection": [
+        "packageRun"
+      ],
+      "description": "Sell a fixed-price package once; track generated orders and release the report pack only when every result is resolved.",
+      "ui": "/#journey/SJ23",
+      "apis": [
+        "/api/commands/package.sell",
+        "/api/commands/package.skip",
+        "/api/commands/package.release"
+      ],
+      "workflowCommands": [
+        {
+          "name": "package.sell",
+          "roles": [
+            "desk",
+            "cashier"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "package.skip",
+          "roles": [
+            "desk"
+          ],
+          "allowedFrom": [
+            "In progress"
+          ],
+          "target": "packageRun"
+        },
+        {
+          "name": "package.release",
+          "roles": [
+            "desk"
+          ],
+          "allowedFrom": [
+            "In progress"
+          ],
+          "target": "packageRun"
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Package creates linked test orders and a single fixed-price bill; incomplete pack cannot release; every skipped item needs a persisted reason before pack release."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "SJ24",
+      "title": "Ambulance & vehicles",
+      "group": "Clinical services",
+      "roles": [
+        "desk",
+        "services",
+        "manager"
+      ],
+      "collection": [
+        "trip",
+        "vehicle"
+      ],
+      "description": "Request transport, assign a service-ready vehicle and driver, track the trip and bill master-rate kilometres.",
+      "ui": "/#journey/SJ24",
+      "apis": [
+        "/api/commands/trip.request",
+        "/api/commands/trip.assign",
+        "/api/commands/trip.advance"
+      ],
+      "workflowCommands": [
+        {
+          "name": "trip.request",
+          "roles": [
+            "desk",
+            "nurse",
+            "services"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "trip.assign",
+          "roles": [
+            "services"
+          ],
+          "allowedFrom": [
+            "Requested"
+          ],
+          "target": "trip"
+        },
+        {
+          "name": "trip.advance",
+          "roles": [
+            "services"
+          ],
+          "allowedFrom": [
+            "Booked",
+            "On the way",
+            "Arrived"
+          ],
+          "target": "trip"
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Transport assignment reserves a service-ready matching vehicle; stages complete an 18km trip at master rate INR450 and free the vehicle."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "SJ25",
+      "title": "Diet & kitchen",
+      "group": "Clinical services",
+      "roles": [
+        "nurse",
+        "services",
+        "manager"
+      ],
+      "collection": [
+        "diet",
+        "wardOrder"
+      ],
+      "description": "Translate a signed diet order into allergy-labelled trays, apply meal cutoffs and never deliver to nil-by-mouth patients.",
+      "ui": "/#journey/SJ25",
+      "apis": [
+        "/api/commands/diet.order",
+        "/api/commands/diet.deliver"
+      ],
+      "workflowCommands": [
+        {
+          "name": "diet.order",
+          "roles": [
+            "nurse"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "diet.deliver",
+          "roles": [
+            "services"
+          ],
+          "allowedFrom": [
+            "Ordered"
+          ],
+          "target": "diet"
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Nursing diet requires a signed matching doctor order; nil-by-mouth produces no deliverable tray and kitchen delivery is refused."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "SJ26",
+      "title": "Mortuary register",
+      "group": "Clinical services",
+      "roles": [
+        "services"
+      ],
+      "collection": [
+        "mortuary",
+        "cabinet"
+      ],
+      "description": "Receive a synthetic record, reserve a cabinet and release only after certificate, MLC clearance, settlement and two staff checks.",
+      "ui": "/#journey/SJ26",
+      "apis": [
+        "/api/commands/mortuary.receive",
+        "/api/commands/mortuary.release"
+      ],
+      "workflowCommands": [
+        {
+          "name": "mortuary.receive",
+          "roles": [
+            "services"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "mortuary.release",
+          "roles": [
+            "services"
+          ],
+          "allowedFrom": [
+            "Received"
+          ],
+          "target": "mortuary"
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "MLC mortuary release blocks without police clearance or distinct second staff; successful release frees cabinet and stores only receiver-ID last four."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "SJ27",
+      "title": "Facility requests",
+      "group": "Clinical services",
+      "roles": [
+        "desk",
+        "cashier",
+        "pharmacist",
+        "store",
+        "nurse",
+        "lab",
+        "ot",
+        "mrd",
+        "services",
+        "manager"
+      ],
+      "collection": [
+        "facility"
+      ],
+      "description": "Raise, assign, close with an action note and reopen within 24 hours. Urgent overdue work remains visible.",
+      "ui": "/#journey/SJ27",
+      "apis": [
+        "/api/commands/facility.raise",
+        "/api/commands/facility.assign",
+        "/api/commands/facility.close",
+        "/api/commands/facility.reopen"
+      ],
+      "workflowCommands": [
+        {
+          "name": "facility.raise",
+          "roles": [
+            "desk",
+            "cashier",
+            "pharmacist",
+            "store",
+            "nurse",
+            "lab",
+            "ot",
+            "mrd",
+            "services",
+            "manager"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "facility.assign",
+          "roles": [
+            "services"
+          ],
+          "allowedFrom": [
+            "Open",
+            "Reopened"
+          ],
+          "target": "facility"
+        },
+        {
+          "name": "facility.close",
+          "roles": [
+            "services"
+          ],
+          "allowedFrom": [
+            "In progress"
+          ],
+          "target": "facility"
+        },
+        {
+          "name": "facility.reopen",
+          "roles": [
+            "desk",
+            "cashier",
+            "pharmacist",
+            "store",
+            "nurse",
+            "lab",
+            "ot",
+            "mrd",
+            "services",
+            "manager"
+          ],
+          "allowedFrom": [
+            "Closed"
+          ],
+          "target": "facility"
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Staff request reaches support; closure requires work note; original requester can reopen within the 24-hour window."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "SJ28",
+      "title": "ICD coding & filing",
+      "group": "Records & operations",
+      "roles": [
+        "mrd",
+        "manager"
+      ],
+      "collection": [
+        "coding",
+        "note",
+        "discharge"
+      ],
+      "description": "Code completed records without changing the doctor’s words. Missing documents return as incomplete; coded MLC records lock.",
+      "ui": "/#journey/SJ28",
+      "apis": [
+        "/api/commands/coding.finish",
+        "/api/commands/coding.question"
+      ],
+      "workflowCommands": [
+        {
+          "name": "coding.finish",
+          "roles": [
+            "mrd"
+          ],
+          "allowedFrom": [
+            "Requested",
+            "Incomplete"
+          ],
+          "target": "coding"
+        },
+        {
+          "name": "coding.question",
+          "roles": [
+            "mrd"
+          ],
+          "allowedFrom": [
+            "Requested",
+            "Incomplete"
+          ],
+          "target": "coding"
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Incomplete file remains open; coding preserves doctor words and feeds disease report; hospital document republish preserves v1/v2; census matches actual check-ins, CSV, and demographic totals."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "SJ29",
+      "title": "Hospital documents",
+      "group": "Records & operations",
+      "roles": [
+        "mrd",
+        "manager"
+      ],
+      "collection": [
+        "hospitalDocument"
+      ],
+      "description": "Publish owner-controlled document versions; preserve old versions and highlight approaching expiry.",
+      "ui": "/#journey/SJ29",
+      "apis": [
+        "/api/commands/hospitalDocument.publish"
+      ],
+      "workflowCommands": [
+        {
+          "name": "hospitalDocument.publish",
+          "roles": [
+            "mrd",
+            "manager"
+          ],
+          "allowedFrom": [],
+          "target": null
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Incomplete file remains open; coding preserves doctor words and feeds disease report; hospital document republish preserves v1/v2; census matches actual check-ins, CSV, and demographic totals."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "SJ30",
+      "title": "MIS & demography",
+      "group": "Records & operations",
+      "roles": [
+        "manager",
+        "cashier",
+        "pharmacist",
+        "store",
+        "lab",
+        "mrd"
+      ],
+      "collection": [
+        "report"
+      ],
+      "description": "Filter counts and money, inspect permitted underlying rows and export audited CSVs. No notes in reports.",
+      "ui": "/#journey/SJ30",
+      "apis": [
+        "/api/reports/{kind}"
+      ],
+      "workflowCommands": [],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Incomplete file remains open; coding preserves doctor words and feeds disease report; hospital document republish preserves v1/v2; census matches actual check-ins, CSV, and demographic totals."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "SJ31",
+      "title": "Enquiries & feedback",
+      "group": "Records & operations",
+      "roles": [
+        "desk",
+        "manager"
+      ],
+      "collection": [
+        "enquiry",
+        "feedback",
+        "message"
+      ],
+      "description": "Record answers and callbacks, close complaints with action, and inspect masked simulated message attempts.",
+      "ui": "/#journey/SJ31",
+      "apis": [
+        "/api/commands/enquiry.save",
+        "/api/commands/feedback.save",
+        "/api/commands/feedback.close",
+        "/api/commands/message.retry"
+      ],
+      "workflowCommands": [
+        {
+          "name": "enquiry.save",
+          "roles": [
+            "desk"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "feedback.save",
+          "roles": [
+            "desk",
+            "manager",
+            "patient"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "feedback.close",
+          "roles": [
+            "manager"
+          ],
+          "allowedFrom": [
+            "Open"
+          ],
+          "target": "feedback"
+        },
+        {
+          "name": "message.retry",
+          "roles": [
+            "desk",
+            "manager",
+            "doctor",
+            "resident"
+          ],
+          "allowedFrom": [
+            "Failed"
+          ],
+          "target": "message"
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Enquiry and complaint retain action records; provider failure creates masked failed message; retry retains both attempts and changes only simulated delivery status."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "SJ32",
+      "title": "Billing masters",
+      "group": "Records & operations",
+      "roles": [
+        "manager"
+      ],
+      "collection": [
+        "tariff",
+        "payer",
+        "item",
+        "itemPrice",
+        "catalogRequest",
+        "package",
+        "bed",
+        "vendor"
+      ],
+      "description": "Propose future-dated prices for independent approval. Historical charges retain their snapshots.",
+      "boundary": "Synthetic staff-owned billing reconciles AD08/SD06 for testing only. No production authority or ETHER migration decision is made.",
+      "ui": "/#journey/SJ32",
+      "apis": [
+        "/api/commands/vendor.save",
+        "/api/commands/tariff.propose",
+        "/api/commands/item.create",
+        "/api/commands/item.retire",
+        "/api/commands/item.price",
+        "/api/commands/payer.create",
+        "/api/commands/bed.create",
+        "/api/commands/package.create"
+      ],
+      "workflowCommands": [
+        {
+          "name": "vendor.save",
+          "roles": [
+            "store",
+            "manager"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "tariff.propose",
+          "roles": [
+            "manager"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "item.create",
+          "roles": [
+            "manager"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "item.retire",
+          "roles": [
+            "manager"
+          ],
+          "allowedFrom": [
+            "Active"
+          ],
+          "target": "item"
+        },
+        {
+          "name": "item.price",
+          "roles": [
+            "manager"
+          ],
+          "allowedFrom": [
+            "Active"
+          ],
+          "target": "item"
+        },
+        {
+          "name": "payer.create",
+          "roles": [
+            "manager"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "bed.create",
+          "roles": [
+            "manager"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "package.create",
+          "roles": [
+            "manager"
+          ],
+          "allowedFrom": [],
+          "target": null
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Price requires future date and a different approver; today’s bills keep old rate; after effective date new bill uses approved rate while historical bill is unchanged.",
+        "High-value stock count waits for approval; future MRP waits for separate approver and scheduler effective date; autonomous reminders record a run and respect patient opt-out; announcement dismissal is persona-scoped."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "SJ33",
+      "title": "Approvals & jobs",
+      "group": "Records & operations",
+      "roles": [
+        "manager"
+      ],
+      "collection": [
+        "approval",
+        "job",
+        "jobRun"
+      ],
+      "description": "Independently approve discounts, refunds, POs, write-offs and rates. Inspect scheduled job results and retry failures.",
+      "ui": "/#journey/SJ33",
+      "apis": [
+        "/api/commands/approval.decide",
+        "/api/commands/rules.save",
+        "/api/commands/job.run"
+      ],
+      "workflowCommands": [
+        {
+          "name": "approval.decide",
+          "roles": [
+            "manager"
+          ],
+          "allowedFrom": [
+            "Pending"
+          ],
+          "target": "approval"
+        },
+        {
+          "name": "rules.save",
+          "roles": [
+            "manager"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "job.run",
+          "roles": [
+            "manager"
+          ],
+          "allowedFrom": [],
+          "target": "job"
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Discount waits for independent approval; split payment yields one receipt; refund capped at net paid line and retains original modes; unexplained cash difference rejected, approved closure blocks collection; net report equals receipts less refund.",
+        "Self approval fails; scheduled job failure is a persisted run visible on Home.",
+        "High-value stock count waits for approval; future MRP waits for separate approver and scheduler effective date; autonomous reminders record a run and respect patient opt-out; announcement dismissal is persona-scoped."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "SJ34",
+      "title": "Patient sign-in",
+      "group": "Patient portal",
+      "roles": [
+        "patient"
+      ],
+      "collection": [
+        "patient"
+      ],
+      "description": "Use registered mobile, captcha and a simulated OTP. Only linked family members are offered.",
+      "ui": "/#journey/SJ34",
+      "apis": [
+        "/api/auth/captcha",
+        "/api/auth/patient",
+        "/api/auth/otp"
+      ],
+      "workflowCommands": [],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Mobile/captcha/OTP login returns only linked family; online booking shares the desk slot grid and duplicate slot booking is atomically refused."
+      ],
+      "browserBehavior": [
+        "Patient browser remains isolated to its linked sample family; an unrelated newly registered patient and other-family record are absent."
+      ],
+      "browserRendered": true
+    },
+    {
+      "id": "SJ35",
+      "title": "Book online",
+      "group": "Patient portal",
+      "roles": [
+        "patient"
+      ],
+      "collection": [
+        "visit"
+      ],
+      "description": "Choose the same free slots as the front desk, pay or pay later, and cancel within the policy window.",
+      "ui": "/#journey/SJ35",
+      "apis": [
+        "/api/slots",
+        "/api/commands/visit.cancel",
+        "/api/commands/visit.book"
+      ],
+      "workflowCommands": [
+        {
+          "name": "visit.cancel",
+          "roles": [
+            "doctor",
+            "resident",
+            "desk",
+            "manager",
+            "patient"
+          ],
+          "allowedFrom": [
+            "Booked",
+            "Waiting",
+            "Held",
+            "Called",
+            "In consultation"
+          ],
+          "target": "visit"
+        },
+        {
+          "name": "visit.book",
+          "roles": [
+            "desk",
+            "manager",
+            "patient"
+          ],
+          "allowedFrom": [],
+          "target": null
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Mobile/captcha/OTP login returns only linked family; online booking shares the desk slot grid and duplicate slot booking is atomically refused.",
+        "Shared slot API returns availability without identities; online booking creates a payable fee; eligible online cancellation refunds the original non-cash mode."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    },
+    {
+      "id": "SJ36",
+      "title": "My health documents",
+      "group": "Patient portal",
+      "roles": [
+        "patient"
+      ],
+      "collection": [
+        "result",
+        "rx",
+        "document",
+        "discharge"
+      ],
+      "description": "Read only released reports, approved prescriptions and your own documents. Download watermarked PDFs and upload a synthetic old report.",
+      "ui": "/#journey/SJ36",
+      "apis": [
+        "/api/documents/{id}/file",
+        "/api/commands/document.generate",
+        "/api/commands/document.upload"
+      ],
+      "workflowCommands": [
+        {
+          "name": "document.generate",
+          "roles": [
+            "doctor",
+            "resident",
+            "desk",
+            "cashier",
+            "patient",
+            "nurse",
+            "manager",
+            "lab",
+            "pharmacist"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "document.upload",
+          "roles": [
+            "doctor",
+            "resident",
+            "desk",
+            "cashier",
+            "nurse",
+            "mrd",
+            "manager",
+            "patient"
+          ],
+          "allowedFrom": [],
+          "target": null
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Urgent orders generate tariff bills; unpaid collection fails; payment failure leaves unpaid, success clears lab; wrong barcode and own verification fail; critical release appears in doctor/patient scopes; amendments preserve original review and require another review."
+      ],
+      "browserBehavior": [
+        "Patient browser remains isolated to its linked sample family; an unrelated newly registered patient and other-family record are absent."
+      ],
+      "browserRendered": true
+    },
+    {
+      "id": "SJ37",
+      "title": "Payments & updates",
+      "group": "Patient portal",
+      "roles": [
+        "patient"
+      ],
+      "collection": [
+        "bill",
+        "payment",
+        "message"
+      ],
+      "description": "Pay a due bill using a simulated provider, retain the receipt and control optional WhatsApp notices. Failed payments stay unpaid.",
+      "ui": "/#journey/SJ37",
+      "apis": [
+        "/api/commands/bill.pay",
+        "/api/commands/patient.updates"
+      ],
+      "workflowCommands": [
+        {
+          "name": "bill.pay",
+          "roles": [
+            "desk",
+            "cashier",
+            "pharmacist",
+            "manager",
+            "patient"
+          ],
+          "allowedFrom": [
+            "Unpaid",
+            "Part paid"
+          ],
+          "target": "bill"
+        },
+        {
+          "name": "patient.updates",
+          "roles": [
+            "patient"
+          ],
+          "allowedFrom": [],
+          "target": null
+        }
+      ],
+      "evidenceFile": "docs/traceability.json",
+      "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
+      "primaryApiStatus": "primary_api_behavior_verified",
+      "apiEvidence": [
+        "Urgent orders generate tariff bills; unpaid collection fails; payment failure leaves unpaid, success clears lab; wrong barcode and own verification fail; critical release appears in doctor/patient scopes; amendments preserve original review and require another review.",
+        "Shared slot API returns availability without identities; online booking creates a payable fee; eligible online cancellation refunds the original non-cash mode."
+      ],
+      "browserBehavior": [],
+      "browserRendered": true
+    }
+  ]
+}
