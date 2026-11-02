@@ -1,4 +1,4 @@
-import { text, num, bool, rows, istDate, type Data } from '../shared/model.js';
+import { text, num, bool, rows, istDate, hasRole, type Data } from '../shared/model.js';
 import { Context } from './context.js';
 import { requireThat } from './store.js';
 
@@ -57,7 +57,7 @@ export function servicesCommand(name: string, ctx: Context): boolean {
     }
     case 'mortuary.release': {
       const entry = ctx.targetOf('mortuary'); const second = ctx.store.person(ctx.t('secondStaffId'));
-      requireThat(second.role === 'services' && second.state === 'Active' && second.id !== ctx.actor.id, 'A second distinct support staff member must check the release.');
+      requireThat(hasRole(second, ['services']) && second.state === 'Active' && second.id !== ctx.actor.id, 'A second distinct support staff member must check the release.');
       requireThat(!bool(entry.data, 'mlc') || ctx.b('police'), 'MLC release is blocked without police clearance.');
       requireThat(/^\d{4}$/.test(ctx.t('receiverLast4')), 'Store only the receiver ID’s last four digits.');
       ctx.update(entry, { ...p, releasedAt: ctx.now(), firstStaffId: ctx.actor.id }, 'Released');

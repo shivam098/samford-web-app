@@ -1,4 +1,6 @@
 import { doctorRoles, staffRoles, type CommandDef, type Field, type Role } from './model.js';
+import { homeCards, weekdays } from './home.js';
+import { coveredChargeTypes } from './finance.js';
 const d = doctorRoles;
 const a: Role[] = ['superadmin', 'admin'];
 const it: Role[] = [...a, 'it'];
@@ -30,15 +32,21 @@ export const commands: CommandDef[] = [
     select('language', 'Navigation language', ['English', 'Hindi']), select('printLanguage', 'Print language', ['English', 'Hindi']),
     f('quietFrom', 'Quiet hours start', 'time', { default: '21:00' }), f('quietTo', 'Quiet hours end', 'time', { default: '07:00' }),
     yes('sound', 'Sound for routine alerts', false), yes('vibration', 'Vibration', false),
-    f('homeOrder', 'Home cards (comma-separated)', 'text', { default: 'visits,referrals,results,admissions,pending' }),
-    opt('hiddenCards', 'Hidden cards (comma-separated)', 'text', { help: 'referrals and results cannot be hidden' }),
-    f('rows', 'Rows per card', 'number', { min: 1, max: 20, default: 5 }),
+    opt('layout', 'Arrange Home cards', 'homeLayout'),
+    f('homeOrder', 'Home cards (legacy order)', 'text', { default: 'visits,referrals,results,admissions,pending', hidden: true }),
+    opt('hiddenCards', 'Hidden cards (legacy)', 'text', { hidden: true }),
+    f('rows', 'Default rows (legacy)', 'number', { min: 1, max: 20, default: 5, hidden: true }),
     opt('shortcuts', 'Shortcut journey IDs (up to six, comma-separated)'),
     select('sort', 'Visit sort', ['Token', 'Time', 'Urgency'])
   ], 'Preferences follow your account; critical alerts and mandatory Home cards cannot be disabled.'),
+  c('preferences.resetHome', 'Reset Home to hospital default', ['DJ02'], d, [yes('confirmed', 'Reset my Home ordering, visibility and row counts')], 'Resets the layout only. Keeps your alert, language, theme and shortcut preferences.'),
+  c('preferences.language', 'Choose display and print language', ['DJ02', 'SJ34'], [...d, 'patient'], [
+    select('language', 'Display language', ['English', 'Hindi']), opt('printLanguage', 'Print language', 'select', { options: ['English', 'Hindi'] })
+  ], 'Changes system labels and document labels only. Authored names, clinical notes and results are never machine-translated.'),
   c('presence.set', 'Tell the team where I am', ['DJ03'], d, [
     select('status', 'Presence', ['In OPD', 'On ward round', 'In OT', 'Away', 'Offline']), opt('room', 'Room'), opt('minutes', 'Away for minutes', 'number', { default: 30, min: 1, max: 240 })
   ], 'Local save is not desk receipt. The board updates only after acceptance.', undefined, undefined, { local: true }),
+  c('handover.claim', 'Claim department handover', ['DJ03'], ['doctor'], [yes('confirmed', 'I accept responsibility for this listed group of work')], 'Claims only your department’s queue. Original clinical authors remain unchanged.', 'handover', ['Awaiting claim']),
   c('availability.request', 'Request an availability change', ['DJ04'], d, [
     select('kind', 'Change', ['Leave', 'Late start', 'Early finish', 'Extra session']), date, f('endDate', 'Through date', 'date'),
     opt('start', 'New start time', 'time'), opt('end', 'New end time', 'time'), reason
@@ -116,6 +124,7 @@ export const commands: CommandDef[] = [
   ], 'Creates a request, not a bed reservation.'),
   c('operation.request', 'Request an operation', ['DJ14'], ['doctor'], [patient, opt('admissionId', 'Admission', 'entity', { source: 'admission' }),
     f('procedure', 'Synthetic procedure'), date, f('duration', 'Expected duration (minutes)', 'number', { min: 15, max: 720, default: 60 }),
+    opt('urgency', 'Operation urgency', 'select', { options: ['Routine', 'Urgent', 'Emergency'], default: 'Routine' }),
     select('anaesthesia', 'Anaesthesia', ['General', 'Regional', 'Local']), doctor, opt('assistant', 'Assistant'),
     yes('consentExplained', 'Consent explained', false), yes('fitness', 'Anaesthetist fitness received', false)
   ], 'OT offers a slot. Missing fitness remains pending.'),
@@ -124,9 +133,10 @@ export const commands: CommandDef[] = [
   c('visit.resume', 'Resume held visit', ['DJ15'], d, [], 'Returns a held visit to the waiting list.', 'visit', ['Held']),
   c('visit.cancel', 'Cancel visit', ['DJ15', 'SJ03', 'SJ35'], [...d, ...desk, 'patient'], [reason], 'Preserves clinical history and creates a refund request for eligible paid cancellations.', 'visit', ['Booked', 'Waiting', 'Held', 'Called', 'In consultation']),
   c('visit.move', 'Move visit', ['DJ15', 'SJ03'], [...d, ...desk], [doctor, date, f('time', 'Time', 'time'), reason, yes('agreed', 'Patient agreed to the move')], 'The new slot is checked atomically; the original visit and its history survive.', 'visit', ['Booked', 'Waiting', 'Held', 'Called', 'In consultation', 'Missed']),
-  c('document.generate', 'Create sample PDF', ['DJ16', 'SJ04', 'SJ07', 'SJ10', 'SJ11', 'SJ14', 'SJ16', 'SJ19', 'SJ36'], [...d, 'desk', 'cashier', 'patient', 'nurse', 'manager', 'lab', 'pharmacist'], [patient,
-    select('kind', 'Document', ['Prescription', 'OPD slip', 'ID card', 'OPD summary', 'Casesheet', 'Bill', 'Receipt', 'Result', 'Discharge summary', 'Referral letter', 'Admission form', 'Wristband', 'Gate pass', 'Sample label', 'Dispatch manifest']),
-    opt('sourceId', 'Source record ID (or leave blank for latest)'), opt('sections', 'Included note sections', 'checklist', { options: ['complaints', 'illness', 'systems', 'diagnosis', 'advice', 'followupNote', 'labFindings'] })
+  c('document.generate', 'Create sample PDF', ['DJ16', 'SJ04', 'SJ07', 'SJ09', 'SJ10', 'SJ11', 'SJ14', 'SJ16', 'SJ19', 'SJ22', 'SJ36'], [...d, 'desk', 'cashier', 'patient', 'nurse', 'manager', 'lab', 'pharmacist'], [patient,
+    select('kind', 'Document', ['Prescription', 'OPD slip', 'ID card', 'OPD summary', 'Casesheet', 'Bill', 'Receipt', 'Credit note', 'Result', 'Discharge summary', 'Referral letter', 'Admission form', 'Wristband', 'Gate pass', 'Sample label', 'Dispatch manifest', 'Consent form']),
+    opt('sourceId', 'Source record ID (or leave blank for latest)'), opt('sections', 'Included note sections', 'checklist', { options: ['complaints', 'illness', 'systems', 'diagnosis', 'advice', 'followupNote', 'labFindings'] }),
+    opt('language', 'Print language', 'select', { options: ['English', 'Hindi'] })
   ], 'Generates an actual watermarked PDF from an authorized immutable snapshot. Reprints say Duplicate.'),
   c('document.share', 'Send document (simulated)', ['DJ16'], d, [select('channel', 'Channel', ['SMS', 'WhatsApp', 'OPD printer'])], 'Destination is the registered mobile or OPD printer; no typed recipient is accepted.', 'document', ['Available']),
   c('certificate.issue', 'Issue a sample certificate', ['DJ16'], ['doctor'], [patient, f('title', 'Certificate type'), f('content', 'Reviewed certificate text', 'textarea'), clinicalReview], 'Creates a numbered synthetic certificate that desk staff may print, never edit.'),
@@ -182,16 +192,21 @@ export const commands: CommandDef[] = [
   c('account.unlock', 'Unlock account', ['AJ07'], it, [yes('identityChecked', 'Identity checked'), reason], 'Retains the failed-attempt audit.', 'account', ['Locked']),
   c('account.edit', 'Save profile changes', ['AJ08'], a, [
     f('name', 'Full synthetic name'), department, f('room', 'Room'), f('qualification', 'Qualification'), reason,
-    opt('receiverId', 'Handover receiver if changing department', 'entity', { source: 'doctor' })
+    opt('handovers', 'Open-work handover by group', 'handovers'),
+    opt('receiverId', 'Legacy all-group handover receiver', 'entity', { source: 'doctor', hidden: true })
   ], 'Before/after appears in the audit. Department transfers require a receiver for open work.', 'account'),
-  c('account.suspend', 'Pause account', ['AJ09'], a, [reason, opt('endDate', 'Automatic return date', 'date'), yes('confirmed', 'I confirm this removes access')], 'Existing sessions stop accessing records; encrypted local drafts remain recoverable.', 'account', ['Active']),
+  c('account.suspend', 'Pause account', ['AJ09'], a, [reason, opt('endDate', 'Automatic return date', 'date'), opt('handovers', 'Handover or leave waiting by group', 'handovers'), yes('confirmed', 'I confirm this removes access')], 'Existing sessions stop accessing records; encrypted local drafts remain recoverable.', 'account', ['Active']),
   c('account.reactivate', 'Reactivate account', ['AJ09', 'AJ10'], a, [reason], 'Only a super admin may restore Deactivated accounts.', 'account', ['Suspended', 'Deactivated']),
   c('account.deactivate', 'Deactivate & hand over', ['AJ10'], a, [
-    entity('receiverId', 'Receiving consultant', 'doctor'), f('confirmName', 'Type the account name'), reason,
+    opt('handovers', 'Required handover recipients by group', 'handovers'),
+    opt('receiverId', 'Legacy all-group handover receiver', 'entity', { source: 'doctor', hidden: true }), f('confirmName', 'Type the account name'), reason,
+    opt('unsentAction', 'Unsent work decision', 'select', { options: ['Wait for sync', 'Accept unsent loss with reason'], default: 'Wait for sync' }),
     f('unsentPlan', 'Unsent-work recovery / accepted loss plan', 'textarea'), yes('confirmed', 'I confirm access removal')
   ], 'Transfers open responsibility, not authorship; ends sessions and keeps all records.', 'account'),
   c('account.scheduleExit', 'Schedule last-day deactivation', ['AJ10'], a, [
-    f('lastWorkingDay', 'Last working day', 'date'), entity('receiverId', 'Receiving consultant', 'doctor'),
+    f('lastWorkingDay', 'Last working day', 'date'), opt('handovers', 'Required handover recipients by group', 'handovers'),
+    opt('receiverId', 'Legacy all-group handover receiver', 'entity', { source: 'doctor', hidden: true }),
+    opt('unsentAction', 'Unsent work decision at exit', 'select', { options: ['Wait for sync', 'Accept unsent loss with reason'], default: 'Wait for sync' }),
     f('confirmName', 'Type the account name'), reason, f('unsentPlan', 'Unsent-work recovery / accepted loss plan', 'textarea'), yes('confirmed', 'I confirm scheduled access removal')
   ], 'Schedules the checked handover for 23:59 IST on the last working day. No HR integration is connected.', 'account', ['Active']),
   c('device.signout', 'Sign out device', ['AJ11'], it, [reason, yes('confirmed', 'Confirm sign-out')], 'Device is rejected on its next request. Local drafts stay encrypted.', 'device'),
@@ -203,6 +218,9 @@ export const commands: CommandDef[] = [
   c('holiday.save', 'Add hospital holiday', ['AJ12'], a, [date, reason], 'No new appointments on the holiday; existing bookings require front-desk moves.'),
   c('roster.save', 'Publish duty / swap', ['AJ13'], a, [department, doctor, date, select('shift', 'Shift', ['Day', 'Night', 'On call']), reason], 'Inactive doctors cannot be assigned. One roster cell per department/date/shift.'),
   c('roster.import', 'Import duty CSV', ['AJ13'], a, [f('csv', 'CSV: departmentId,doctorId,date,shift,reason', 'csv')], 'Every row is validated before any roster entry changes.'),
+  c('roster.repeat', 'Repeat a weekly duty pattern', ['AJ13'], a, [department, doctor, f('month', 'Roster month (YYYY-MM)'), f('weekdays', 'Days of the week', 'checklist', { options: weekdays }),
+    select('shift', 'Shift', ['Day', 'Night', 'On call']), yes('replaceExisting', 'Replace conflicting assignments shown in the preview', false), reason
+  ], 'Preview the month’s dates and conflicts; inactive doctors are refused. Existing identical cells are not duplicated.'),
   c('job.presence', 'Run 22:00 presence reset', ['AJ13', 'DJ24'], ['superadmin'], [date], 'An idempotent demo run at 22:00 IST skips on-call/night duty and does not sign users out.'),
   c('set.publish', 'Publish department set', ['AJ14'], a, [
     department, f('name', 'Set name'), select('kind', 'Type', ['Medicines', 'Tests']),
@@ -222,6 +240,7 @@ export const commands: CommandDef[] = [
     select('feature', 'Feature', ['Video', 'Dictation', 'WhatsApp', 'Ocular', 'Dental', 'Obstetric']), select('state', 'Availability', ['On', 'Off', 'Pilot']),
     opt('pilotDoctors', 'Pilot doctor IDs (comma-separated)')
   ], 'API and UI enforce availability; drafts remain encrypted locally.'),
+  c('home.defaults', 'Publish department Home defaults', ['AJ16'], a, [department, f('layout', 'Default Home arrangement', 'homeLayout'), opt('lockedCards', 'Additional locked Home cards', 'checklist', { options: homeCards.map(card => card.id) }), reason], 'Referrals and results are always locked. Additional department locks take effect on the next sync without deleting personal preferences.'),
   c('announcement.publish', 'Publish announcement', ['AJ16'], a, [f('title', 'Title'), f('content', 'Message', 'textarea'),
     select('audience', 'Audience', ['All', 'Doctors', 'Staff']), opt('departmentId', 'Department (optional)', 'entity', { source: 'department' }),
     f('start', 'Starts', 'datetime'), f('end', 'Ends', 'datetime')
@@ -240,10 +259,12 @@ export const commands: CommandDef[] = [
   c('staff.create', 'Create admin or staff account', ['AJ22'], ['superadmin'], [
     f('name', 'Full synthetic name'), f('staffId', 'Staff ID'), f('login', 'Login ID'), f('mobile', 'Synthetic mobile'),
     department, select('role', 'Role', ['admin', 'head', 'it', 'auditor', ...staffRoles]),
+    opt('roles', 'Additional staff roles (staff identities only)', 'checklist', { options: staffRoles }),
     yes('verifier', 'Lab verifier rights', false)
   ], 'Staff identity management here is an explicit SO02 demo assumption.'),
   c('account.role', 'Request role change', ['AJ22'], ['superadmin'], [
     select('role', 'New role', ['superadmin', 'admin', 'head', 'it', 'auditor', ...staffRoles]), department, reason,
+    opt('roles', 'Additional staff roles (staff identities only)', 'checklist', { options: staffRoles }),
     yes('confirmed', 'I reviewed the access impact')
   ], 'Own-role changes are refused; elevation waits for a second super admin.', 'account'),
   c('role.approve', 'Approve super-admin elevation', ['AJ22'], ['superadmin'], [reason], 'The requester cannot approve. Writes only the approved target role.', 'roleApproval', ['Pending']),
@@ -276,7 +297,7 @@ export const commands: CommandDef[] = [
   ], 'Issues one per-doctor/day token. Free follow-up must be within seven days of a completed visit.', 'visit', ['Booked']),
   c('board.save', 'Configure waiting-room screen', ['SJ05'], desk, [f('name', 'Screen name'),
     opt('doctorId', 'Doctor (blank for all)', 'entity', { source: 'doctor' }), select('view', 'View', ['OPD status', 'Room', 'Current OPDs']), yes('enabled', 'Board active', false)
-  ], 'The board is tester-gated but requires no clinical persona. It receives tokens, rooms and doctor names only.'),
+  ], 'The public synthetic board requires no clinical persona. It receives tokens, rooms and doctor names only.'),
   c('board.toggle', 'Switch board on/off', ['SJ05'], desk, [yes('enabled', 'Active', false)], 'Disabling takes effect on the next board refresh.', 'board'),
   c('document.upload', 'Upload synthetic patient document', ['SJ06', 'SJ36', 'DJ07'], [...d, 'desk', 'cashier', 'nurse', 'mrd', 'manager', 'patient'], [
     patient, select('kind', 'File type', ['Old report', 'Referral letter', 'Photo', 'ID proof (not Aadhaar)', 'Scheme card', 'Consent', 'Other']),
@@ -284,14 +305,17 @@ export const commands: CommandDef[] = [
   ], 'Files are stored privately and served through authorized endpoints. ID proofs and scheme cards are desk-only.'),
   c('document.void', 'Mark filed by mistake', ['SJ06'], ['desk', 'cashier', 'nurse', 'mrd', 'manager'], [reason], 'Keeps the file history but hides it from clinical/patient views.', 'document', ['Available']),
   c('bill.service', 'Add a tariff service', ['SJ07'], ['desk', 'cashier', 'manager'], [patient, entity('tariffId', 'Service', 'tariff'), f('quantity', 'Quantity', 'number', { min: 1, max: 100, default: 1 }), yes('emergency', 'Emergency extra', false)], 'The server selects the effective payer rate; a caller cannot type a price.'),
-  c('bill.discount', 'Request discount', ['SJ07'], cash, [f('percent', 'Discount (%)', 'number', { min: 0.01, max: 100 }), reason], 'Above the role limit, payment and printing wait for an independent approval.', 'bill', ['Unpaid']),
+  c('bill.discount', 'Request discount', ['SJ07', 'SJ10'], [...cash, 'pharmacist'], [f('percent', 'Discount (%)', 'number', { min: 0.01, max: 100 }), reason], 'Above the role limit, payment and printing wait for an independent approval.', 'bill', ['Unpaid']),
   c('bill.pay', 'Receive payment (simulated)', ['SJ07', 'SJ37'], ['desk', 'cashier', 'pharmacist', 'manager', 'patient'], [
     f('payments', 'Payment split', 'payments'), select('outcome', 'Provider outcome', ['Success', 'Failure'])
   ], 'No real money. Failure records an attempt without marking the bill paid; successful total must match due.', 'bill', ['Unpaid', 'Part paid']),
-  c('claim.create', 'Check eligibility / draft claim', ['SJ08'], cash, [patient, admission,
+  c('claim.create', 'Check eligibility / draft claim', ['SJ08'], cash, [patient, entity('admissionId', 'Requested or active admission', 'admission', { states: ['Requested', 'Admitted'] }),
     select('payer', 'Payer', ['Ayushman', 'CGHS', 'TPA', 'Corporate']), f('policy', 'Synthetic policy / beneficiary ID'), amount,
-    f('cover', 'Available cover (INR)', 'number', { min: 0 }), f('packageId', 'Package / plan reference')
+    f('cover', 'Available cover (INR)', 'number', { min: 0 }), entity('packageId', 'Published payer package', 'package'),
+    opt('eligibilityOutcome', 'Simulated beneficiary check', 'select', { options: ['Eligible', 'Not eligible', 'Provider unavailable'], default: 'Eligible' })
   ], 'Simulated eligibility; no scheme portal contact.'),
+  c('claim.retryEligibility', 'Retry simulated eligibility', ['SJ08'], cash, [select('outcome', 'Simulated result', ['Eligible', 'Not eligible', 'Provider unavailable']), f('cover', 'Available cover (INR)', 'number', { min: 0 }), reason], 'Records each eligibility attempt; a failed check cannot be sent for pre-authorisation.', 'claim', ['Eligibility failed']),
+  c('claim.reconcilePackage', 'Reconcile an earlier package reference', ['SJ08'], cash, [entity('packageId', 'Published payer package', 'package'), reason, yes('confirmed', 'Return to draft and obtain a fresh simulated approval')], 'For an earlier demo claim without a master package, preserves history and requires a fresh approval. Never rewrites a paid bill.', 'claim', ['Draft', 'Sent', 'Query raised', 'Approved', 'Rejected']),
   c('claim.send', 'Send claim / pre-authorisation', ['SJ08'], cash, [f('documents', 'Attached document references / query reply', 'textarea')], 'Records each submission and query response.', 'claim', ['Draft', 'Query raised']),
   c('claim.question', 'Ask consultant about insurer query', ['SJ08'], cash, [f('question', 'Question to the consultant', 'textarea')], 'Creates a clinical clarification on the consultant’s bell, not a generic inbox.', 'claim', ['Query raised']),
   c('claim.response', 'Simulate insurer response', ['SJ08'], cash, [
@@ -303,12 +327,20 @@ export const commands: CommandDef[] = [
   ], 'A deduction creates an approval request; settlement is not final until approved.', 'claim', ['Approved', 'Claim sent']),
   c('claim.final', 'Submit discharge claim', ['SJ08'], cash, [], 'Requires actual discharge and approved summary plus final bill.', 'claim', ['Approved']),
   c('refund.request', 'Request refund / credit', ['SJ09'], [...cash, 'pharmacist'], [
-    entity('billId', 'Paid bill', 'bill', { states: ['Paid'] }), f('lineId', 'Bill line ID'), amount, reason
+    entity('billId', 'Paid bill', 'bill', { states: ['Paid'] }), f('lineId', 'Bill line ID'), amount, reason,
+    opt('returnId', 'Unresolved pharmacy return (optional)', 'entity', { source: 'return', states: ['Credit needs review'] })
   ], 'Cannot exceed the line’s discounted paid amount less earlier refunds. Refunds use the original mode.'),
   c('counter.close', 'Reconcile & close counter', ['SJ09'], ['cashier', 'desk', 'pharmacist', 'manager'], [
-    f('countedCash', 'Counted cash (INR)', 'number', { min: 0 }), f('denominations', 'Note-count breakdown', 'textarea'), opt('reason', 'Difference reason')
+    f('countedCash', 'Counted cash (INR)', 'number', { min: 0, default: 0, hidden: true }), f('denominations', 'Count cash by denomination', 'denominations'), opt('reason', 'Difference reason')
   ], 'A difference above INR 100 needs independent approval. Closed counters cannot collect again that day.'),
+  c('counter.sendAccounts', 'Send closed counter report to accounts (simulated)', ['SJ09'], ['cashier', 'desk', 'pharmacist', 'manager'], [yes('confirmed', 'The recorded counter totals and variance are reviewed')], 'Exports day-end totals only; it does not create an accounting ledger. A failed simulated send stays retryable.', 'counterClose', ['Closed']),
   c('pharmacy.receive', 'Acknowledge prescription', ['SJ10'], ['pharmacist'], [], 'Acknowledged means received, not dispensed.', 'rx', ['Sent']),
+  c('pharmacy.paperRx', 'Receive a synthetic paper prescription', ['SJ10'], ['pharmacist'], [
+    patient, f('prescriberName', 'Doctor name on paper prescription'), f('registration', 'Doctor registration number on paper'),
+    f('prescriptionDate', 'Paper prescription date', 'date'), f('file', 'Readable synthetic prescription scan (PDF / PNG / JPEG)', 'file'),
+    medicines, opt('reviewingDoctorId', 'In-app consultant for clarifications (optional)', 'entity', { source: 'doctor' }),
+    yes('transcriptionConfirmed', 'I checked every transcribed line against the paper prescription'), yes('synthetic', 'This paper prescription contains synthetic data only')
+  ], 'Preserves paper prescriber identity, scan and pharmacist entry attribution. No automatic prescribing, OCR or unapproved substitution.'),
   c('pharmacy.question', 'Ask about substitution', ['SJ10'], ['pharmacist'], [
     f('lineId', 'Prescription line ID'), entity('proposedItemId', 'Same-salt / strength alternative', 'item'), reason
   ], 'Creates a question against the current prescription version. No substitution occurs yet.', 'rx', ['Sent', 'Received', 'Part dispensed']),
@@ -404,6 +436,12 @@ export const commands: CommandDef[] = [
     select('theatre', 'Theatre', ['OT 1', 'OT 2']), f('start', 'Start', 'datetime'),
     f('anaesthetist', 'Anaesthetist'), f('scrubNurse', 'Scrub nurse'), opt('assetId', 'Equipment', 'entity', { source: 'asset' }), opt('implants', 'Implants')
   ], 'Checks interval overlap for theatre and surgeon, plus equipment availability.', 'operation', ['Requested', 'Reschedule requested']),
+  c('operation.emergencySchedule', 'Schedule emergency & move planned case', ['SJ20'], ['ot'], [
+    select('theatre', 'Emergency theatre', ['OT 1', 'OT 2']), f('start', 'Emergency start', 'datetime'),
+    f('anaesthetist', 'Emergency anaesthetist'), f('scrubNurse', 'Emergency scrub nurse'), opt('assetId', 'Emergency equipment', 'entity', { source: 'asset' }), opt('implants', 'Emergency implants'),
+    entity('plannedId', 'Conflicting planned case', 'operation', { states: ['Offered', 'Scheduled'], crossPatient: true }),
+    select('rescheduledTheatre', 'Replacement theatre for planned case', ['OT 1', 'OT 2']), f('rescheduledStart', 'Replacement start for planned case', 'datetime'), reason
+  ], 'Validates both slots in one transaction. The moved case returns to Offered, its surgeon is notified and pre-op checks must be rechecked.', 'operation', ['Requested', 'Reschedule requested']),
   c('operation.checklist', 'Complete pre-operation checklist', ['SJ20'], ['ot', 'nurse'], [
     entity('consentId', 'Signed consent', 'consent', { states: ['Signed'] }), yes('fasting', 'Fasting checked'), yes('blood', 'Blood arranged / not required'),
     yes('fitness', 'Anaesthetist fitness complete'), yes('authorisation', 'Insurance approved / not applicable')
@@ -484,7 +522,7 @@ export const commands: CommandDef[] = [
   c('message.retry', 'Retry failed message', ['SJ31', 'DJ16'], ['desk', 'manager', ...d], [], 'Adds a new attempt to the same simulated message; never claims a real send.', 'message', ['Failed']),
   c('tariff.propose', 'Propose future tariff', ['SJ32'], ['manager'], [
     entity('tariffId', 'Service', 'tariff'), select('payer', 'Payer', ['Self', 'Ayushman', 'CGHS', 'TPA', 'Corporate']),
-    f('rate', 'New rate (INR)', 'number', { min: 0 }), f('effective', 'Effective date', 'date'), reason
+    f('rate', 'New rate (INR)', 'number', { min: 0 }), opt('nightExtra', 'Night extra (INR)', 'number', { min: 0 }), opt('emergencyExtra', 'Emergency extra (INR)', 'number', { min: 0 }), f('effective', 'Effective date', 'date'), reason
   ], 'Independent approval and a future date are mandatory; existing bill snapshots never change.'),
   c('item.create', 'Add catalog item', ['SJ32'], ['manager'], [
     f('name', 'Synthetic medicine / consumable'), f('salt', 'Salt'), f('strength', 'Strength'), f('form', 'Form'),
@@ -497,15 +535,21 @@ export const commands: CommandDef[] = [
   c('bed.create', 'Add bed', ['SJ32'], ['manager'], [
     f('name', 'Bed number'), f('ward', 'Ward'), select('category', 'Category', ['General', 'Private', 'ICU', 'Day care']), f('dailyRate', 'Daily rate (INR)', 'number', { min: 0 })
   ], 'Creates a clean free bed in the shared bed board.'),
-  c('package.create', 'Add health package', ['SJ32'], ['manager'], [
-    f('name', 'Package name'), tests, f('price', 'Fixed price (INR)', 'number', { min: 0 })
-  ], 'Bundle identity and price are snapshotted at sale.'),
+  c('package.create', 'Create package master', ['SJ32'], ['manager'], [
+    f('name', 'Package name'), opt('kind', 'Package kind', 'select', { options: ['Health check-up', 'Day care', 'Scheme treatment'], default: 'Health check-up' }),
+    opt('tests', 'Included tests', 'tests'), f('price', 'Self-pay fixed price (INR)', 'number', { min: 0 }),
+    opt('payerRates', 'Payer-specific package rates', 'payerRates'), opt('coveredTypes', 'Included scheme charge types', 'checklist', { options: coveredChargeTypes })
+  ], 'New package rates require independent approval before activation. Billing snapshots the approved payer rate.'),
+  c('package.proposeRates', 'Propose future package rates', ['SJ32'], ['manager'], [
+    entity('packageId', 'Package', 'package'), f('payerRates', 'Future payer rates', 'payerRates'), f('effective', 'Effective date', 'date'), reason
+  ], 'A different manager approves future rates. Earlier bills and agreed package quotes remain unchanged.'),
   c('approval.decide', 'Decide approval request', ['SJ33'], ['manager'], [
     select('decision', 'Decision', ['Approve', 'Decline']), reason
   ], 'Requester cannot approve their own request. Applies the specified effect only once.', 'approval', ['Pending']),
   c('rules.save', 'Set demo approval limits', ['SJ33'], ['manager'], [
     f('discount', 'Cashier discount limit (%)', 'number', { min: 0, max: 10, default: 10 }),
     f('purchase', 'PO approval threshold (INR)', 'number', { min: 0, max: 50000, default: 50000 }),
+    opt('refund', 'Non-cash refund limit (INR)', 'number', { min: 0, max: 500, default: 500 }),
     f('cashDifference', 'Cash difference threshold (INR)', 'number', { min: 0, max: 100, default: 100 })
   ], 'These thresholds are configurable demo assumptions, not hospital approval.'),
   c('job.run', 'Run scheduled job now', ['SJ33'], ['manager'], [

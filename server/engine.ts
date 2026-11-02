@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { commandByName } from '../shared/commands.js';
-import { text, type Actor, type Entity, type Field, type CommandRequest, type Receipt } from '../shared/model.js';
+import { text, actorRoles, doctorRoles, documentKinds, type Actor, type Entity, type Field, type CommandRequest, type Receipt } from '../shared/model.js';
 import { Store, DomainError, requireThat } from './store.js';
 import { Context, visible, safeEntity } from './context.js';
 import { clinicalCommand } from './clinical.js';
@@ -21,7 +21,13 @@ function validateField(field: Field, value: unknown) {
       requireThat((field.min === undefined || value >= field.min) && (field.max === undefined || value <= field.max), `${field.label} must be between ${field.min ?? 'the allowed minimum'} and ${field.max ?? 'the allowed maximum'}.`); break;
     case 'medicines':
     case 'payments':
+    case 'handovers':
       requireThat(Array.isArray(value) && value.every(v => v && typeof v === 'object' && !Array.isArray(v)) && (!field.required || value.length > 0) && value.length <= 50, `Add valid ${field.label.toLowerCase()} rows.`); break;
+    case 'homeLayout':
+    case 'payerRates':
+      requireThat(value && typeof value === 'object' && !Array.isArray(value), `${field.label} must be a structured object.`); break;
+    case 'denominations':
+      requireThat(typeof value === 'string' || (value && typeof value === 'object' && !Array.isArray(value)), 'Provide denomination counts.'); break;
     case 'tests':
     case 'checklist':
       requireThat(Array.isArray(value) && value.every(v => typeof v === 'string') && (!field.required || value.length > 0) && value.length <= 50, `Choose valid ${field.label.toLowerCase()}.`);
@@ -37,7 +43,7 @@ function validateField(field: Field, value: unknown) {
       if (field.kind === 'time') requireThat(/^([01]\d|2[0-3]):[0-5]\d$/.test(value), `${field.label} must be a valid time.`);
   }
 }
-const clinicalTypes = new Set(['patient', 'visit', 'history', 'allergy', 'vital', 'note', 'rx', 'order', 'sample', 'result', 'review', 'referral', 'admission', 'wardOrder', 'discharge', 'round', 'nursing', 'administration', 'question', 'document', 'abha', 'mortuary', 'consent', 'certificate', 'coding']);
+const clinicalTypes = new Set(['patient', 'visit', 'history', 'allergy', 'vital', 'note', 'rx', 'order', 'sample', 'result', 'review', 'referral', 'admission', 'wardOrder', 'discharge', 'round', 'nursing', 'administration', 'question', 'document', 'abha', 'mortuary', 'consent', 'certificate', 'coding', 'claim', 'bill', 'payment', 'refund', 'dispense', 'return', 'packageRun']);
 export function auditSafe(entity: Entity | undefined): unknown {
   if (!entity) return null;
   if (clinicalTypes.has(entity.type)) return { id: entity.id, type: entity.type, version: entity.version, status: entity.status, patientId: entity.patientId, doctorId: entity.doctorId, department: entity.department };
@@ -54,10 +60,14 @@ export function anchorFor(store: Store, name: string, request: CommandRequest): 
 export function execute(store: Store, actor: Actor, name: string, request: CommandRequest): Receipt {
   const def = commandByName[name];
   if (!def) throw new DomainError(404, 'UNKNOWN_COMMAND', 'This action is unavailable. Refresh the app.');
-  if (!def.roles.includes(actor.role)) throw new DomainError(403, 'ROLE_DENIED', 'Your role cannot perform this action. Sign in as the responsible demo persona.');
+  const permitted = actorRoles(actor).filter(role => def.roles.includes(role) &&
+    (name !== 'document.generate' || doctorRoles.includes(role) || documentKinds[role]?.includes(text(request.payload, 'kind'))));
+  if (!permitted.length) throw new DomainError(403, 'ROLE_DENIED', 'Your assigned roles cannot perform this action. Sign in as the responsible demo identity.');
+  if (request.actingRole && !permitted.includes(request.actingRole)) throw new DomainError(403, 'ROLE_DENIED', 'That acting role is not assigned or cannot perform this action.');
+  const effectiveRole = request.actingRole ?? (permitted.includes(actor.role) ? actor.role : permitted[0]);
   requireThat(actor.state === 'Active' && !actor.temporary && actor.profileConfirmed, 'Complete sign-in and profile confirmation first.');
   requireThat(request && typeof request.operationId === 'string' && /^[a-zA-Z0-9_-]{12,100}$/.test(request.operationId), 'A valid operation ID is required.');
-  requireThat(Object.keys(request).every(key => ['operationId', 'actorId', 'targetId', 'expectedVersion', 'createdAt', 'deviceId', 'payload', 'contextVersions'].includes(key)), 'Unexpected request envelope field. Use the published API contract.');
+  requireThat(Object.keys(request).every(key => ['operationId', 'actorId', 'actingRole', 'targetId', 'expectedVersion', 'createdAt', 'deviceId', 'payload', 'contextVersions'].includes(key)), 'Unexpected request envelope field. Use the published API contract.');
   requireThat(request.actorId === actor.id, 'This saved action belongs to a different persona. Sign in as the original author; it was not reassigned.', 'ACTOR_MISMATCH');
   requireThat(request.payload && typeof request.payload === 'object' && !Array.isArray(request.payload), 'A structured action payload is required.');
   requireThat(typeof request.createdAt === 'string' && !Number.isNaN(Date.parse(request.createdAt)), 'The local save time is invalid.');
@@ -102,12 +112,12 @@ export function execute(store: Store, actor: Actor, name: string, request: Comma
     if (previous) requireThat(request.contextVersions?.[previous.id] !== undefined, 'Review the current prescription version before creating an amendment.');
   }
   return store.transact(() => {
-    const ctx = new Context(store, actor, request, def.target ? anchor : undefined);
+    const ctx = new Context(store, { ...actor, role: effectiveRole }, request, def.target ? anchor : undefined);
     const handled = [clinicalCommand, adminCommand, commerceCommand, careCommand, servicesCommand, documentCommand].some(handler => handler(name, ctx));
     if (!handled) throw new DomainError(501, 'NOT_IMPLEMENTED', 'This workflow has not been implemented. No changes were saved.');
     const entities = [...new Set(ctx.touched)].map(id => store.get(id));
-    store.audit(actor.id, actor.role, name, anchor?.id ?? entities[0]?.id ?? actor.id, auditSafe(anchor), entities.map(auditSafe), text(request.payload, 'reason'));
-    const receipt: Receipt = { operationId: request.operationId, acceptedAt: store.now(), entityIds: entities.map(e => e.id), message: `${def.label}: accepted by the mock hospital.`, data: { ...ctx.result, versions: Object.fromEntries(entities.map(e => [e.id, e.version])) } };
+    store.audit(actor.id, effectiveRole, name, anchor?.id ?? entities[0]?.id ?? actor.id, auditSafe(anchor), entities.map(auditSafe), text(request.payload, 'reason'));
+    const receipt: Receipt = { operationId: request.operationId, acceptedAt: store.now(), entityIds: entities.map(e => e.id), message: `${def.label}: accepted by the mock hospital.`, data: { ...ctx.result, actingRole: effectiveRole, versions: Object.fromEntries(entities.map(e => [e.id, e.version])) } };
     const persisted = structuredClone(receipt);
     if (persisted.data) for (const key of ['temporaryPassword', 'temporarySlips', 'simulatedCode']) if (key in persisted.data) {
       delete persisted.data[key]; persisted.data.oneTimeValue = 'Already shown once. If it was lost, issue a replacement through the appropriate workflow.';

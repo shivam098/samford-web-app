@@ -1,9 +1,11 @@
 import { randomBytes, randomUUID } from 'node:crypto';
-import { text, num, bool, rows, strings, istDate, type Actor, type Data } from '../shared/model.js';
+import { text, num, bool, rows, strings, istDate, type Actor } from '../shared/model.js';
 import { credential } from './auth.js';
 import { Context } from './context.js';
 import { orderTests } from './clinical.js';
 import { requireThat } from './store.js';
+import { theatreSlot, emergencySchedule } from './theatre.js';
+import { admissionCharges, packageQuote } from './finance.js';
 
 function freeBed(ctx: Context, id: string, patientId: string, category?: string) {
   const bed = ctx.get(id, 'bed');
@@ -182,11 +184,12 @@ export function careCommand(name: string, ctx: Context): boolean {
       const admission = ctx.targetOf('admission'); const bed = freeBed(ctx, ctx.t('bedId'), admission.patientId!, text(admission.data, 'category'));
       const recordedAdvance = ctx.all('payment').filter(e => e.patientId === admission.patientId && e.status === 'Paid' && text(e.data, 'admissionId') === admission.id && bool(e.data, 'isAdvance')).reduce((sum, e) => sum + num(e.data, 'total'), 0);
       requireThat(Math.round(ctx.n('advance') * 100) <= recordedAdvance, 'This advance has no recorded payment. Set zero or record it through billing.');
-      ctx.update(admission, { ...p, number: `IPD-${ctx.all('admission').filter(e => ['Admitted', 'Discharged'].includes(e.status)).length + 1}`, bedId: bed.id, admittedAt: ctx.now(), bedHistory: [{ bedId: bed.id, name: text(bed.data, 'name'), from: ctx.now(), to: '', rate: num(bed.data, 'dailyRate') }], advanceDue: ctx.n('advance') === 0, mlc: bool(ctx.get(admission.patientId!).data, 'mlc') }, 'Admitted');
+      ctx.update(admission, { ...p, advance: Math.round(ctx.n('advance') * 100), number: `IPD-${ctx.all('admission').filter(e => ['Admitted', 'Discharged'].includes(e.status)).length + 1}`, bedId: bed.id, admittedAt: ctx.now(), bedHistory: [{ bedId: bed.id, name: text(bed.data, 'name'), from: ctx.now(), to: '', rate: num(bed.data, 'dailyRate') }], advanceDue: ctx.n('advance') === 0, mlc: bool(ctx.get(admission.patientId!).data, 'mlc') }, 'Admitted');
       ctx.update(bed, { admissionId: admission.id, patientId: admission.patientId!, occupiedAt: ctx.now() }, 'Occupied'); break;
     }
     case 'admission.advance': {
       const admission = ctx.targetOf('admission'); requireThat(ctx.n('amount') > 0, 'Enter a positive advance amount.');
+      requireThat(!text(admission.data, 'finalBillId'), 'A final bill already exists. Pay that bill instead of taking another advance.');
       const bill = ctx.charge(admission.patientId!, 'Admission advance deposit', Math.round(ctx.n('amount') * 100), `${admission.id}-advance-${ctx.request.operationId}`, {}, admission.id);
       ctx.update(bill, { isAdvance: true }); break;
     }
@@ -219,22 +222,14 @@ export function careCommand(name: string, ctx: Context): boolean {
     case 'discharge.bill': {
       const discharge = ctx.targetOf('discharge'); const admission = ctx.get(text(discharge.data, 'admissionId'), 'admission');
       requireThat(admission.status === 'Admitted' && !text(admission.data, 'finalBillId'), 'This stay is already discharged or has a final bill.');
-      const bills = ctx.all('bill').filter(e => text(e.data, 'admissionId') === admission.id && !['Cancelled', 'Consolidated'].includes(e.status));
-      const lines: Data[] = bills.filter(e => !bool(e.data, 'isAdvance') && num(e.data, 'total') > num(e.data, 'paid')).map(e => ({ id: randomUUID(), name: text(e.data, 'name'), total: num(e.data, 'total') - num(e.data, 'paid'), componentBillId: e.id, quantity: 1 }));
-      for (const interval of rows(admission.data, 'bedHistory')) {
-        const to = text(interval, 'to') || ctx.now();
-        const hours = Math.max(1, Math.ceil((new Date(to).getTime() - new Date(text(interval, 'from')).getTime()) / 3600000));
-        lines.push({ id: randomUUID(), name: `Bed: ${text(interval, 'name')}`, from: text(interval, 'from'), to, quantity: hours, unit: 'hours', dailyRate: num(interval, 'rate'), total: Math.round(hours * num(interval, 'rate') / 24) });
-      }
+      const { lines, bills, advances, insurerShare, agreement, quote } = admissionCharges(ctx, admission);
       const gross = lines.reduce((sum, line) => sum + num(line, 'total'), 0);
-      const claims = ctx.all('claim').filter(e => text(e.data, 'admissionId') === admission.id && e.status === 'Approved' && text(e.data, 'validUntil') >= istDate(ctx.now()));
-      const insurerShare = Math.min(gross, claims.reduce((sum, claim) => sum + num(claim.data, 'approvedAmount'), 0));
-      const advances = bills.filter(e => bool(e.data, 'isAdvance')).reduce((sum, e) => sum + num(e.data, 'paid') - num(e.data, 'refunded'), 0);
       const appliedAdvance = Math.min(gross - insurerShare, advances);
-      if (insurerShare) lines.push({ id: randomUUID(), name: 'Approved insurer share', quantity: 1, total: -insurerShare, claimIds: claims.map(e => e.id) });
+      if (insurerShare) lines.push({ id: randomUUID(), name: 'Approved insurer share', quantity: 1, total: -insurerShare, claimId: agreement?.id ?? '' });
       if (appliedAdvance) lines.push({ id: randomUUID(), name: 'Recorded advance adjusted', quantity: 1, total: -appliedAdvance });
       const final = ctx.bill(admission.patientId!, 'Final hospital bill', lines, `${admission.id}-final`, admission.id);
-      ctx.update(final, { final: true, componentIds: bills.filter(e => !bool(e.data, 'isAdvance') && e.status !== 'Paid').map(e => e.id), recordedAdvances: advances, appliedAdvance, advanceRefundDue: advances - appliedAdvance, insurerShare, schemeCovered: insurerShare > 0 });
+      ctx.update(final, { final: true, componentIds: bills.filter(e => !bool(e.data, 'isAdvance') && e.status !== 'Paid').map(e => e.id), recordedAdvances: advances, appliedAdvance, advanceRefundDue: advances - appliedAdvance, insurerShare, schemeCovered: insurerShare > 0,
+        packageQuote: quote ?? null, coverageValidUntil: agreement ? text(agreement.data, 'validUntil') : '', claimId: agreement?.id ?? '', grossCharges: gross, patientShare: gross - insurerShare });
       for (const bill of bills.filter(e => !bool(e.data, 'isAdvance') && e.status !== 'Paid')) ctx.update(bill, { consolidatedInto: final.id }, 'Consolidated');
       ctx.update(admission, { finalBillId: final.id });
       ctx.update(discharge, { billingHandoff: 'Final bill prepared', finalBillId: final.id }); break;
@@ -255,14 +250,10 @@ export function careCommand(name: string, ctx: Context): boolean {
     }
     case 'operation.schedule': {
       const operation = ctx.targetOf('operation');
-      const start = new Date(ctx.t('start')).getTime(); const end = start + num(operation.data, 'duration') * 60000;
-      requireThat(Number.isFinite(start), 'Enter a valid start time.');
-      requireThat(!ctx.all('operation').some(e => e.id !== operation.id && ['Offered', 'Scheduled', 'In theatre', 'Recovery'].includes(e.status) &&
-        (text(e.data, 'theatre') === ctx.t('theatre') || text(e.data, 'surgeonId') === text(operation.data, 'surgeonId')) &&
-        new Date(text(e.data, 'start')).getTime() < end && new Date(text(e.data, 'end')).getTime() > start), 'The theatre or surgeon is already booked for this interval.');
-      if (ctx.t('assetId')) requireThat(ctx.get(ctx.t('assetId'), 'asset').status === 'Available', 'This equipment is under maintenance.');
-      ctx.update(operation, { ...p, end: new Date(end).toISOString() }, 'Offered'); break;
+      ctx.update(operation, theatreSlot(ctx, operation, p), 'Offered'); break;
     }
+    case 'operation.emergencySchedule':
+      emergencySchedule(ctx); break;
     case 'operation.checklist': {
       const operation = ctx.targetOf('operation'); const consent = ctx.get(ctx.t('consentId'), 'consent');
       requireThat(consent.status === 'Signed' && consent.patientId === operation.patientId && ['Surgery', 'High risk'].includes(text(consent.data, 'kind')), 'Choose a signed surgical consent for this patient.');
@@ -281,10 +272,12 @@ export function careCommand(name: string, ctx: Context): boolean {
       const patient = ctx.patient(); const bed = freeBed(ctx, ctx.t('bedId'), patient.id, 'Day care');
       const consultant = ctx.store.person(ctx.t('doctorId')); requireThat(consultant.role === 'doctor' && consultant.state === 'Active', 'Select an active consultant.');
       const pkg = ctx.get(ctx.t('packageId'), 'package');
+      requireThat(text(pkg.data, 'kind', 'Health check-up') !== 'Scheme treatment', 'Choose a day-care or health package, not an inpatient scheme package.');
+      const quote = packageQuote(ctx.store, pkg.id, text(patient.data, 'payer', 'Self'));
       const admission = ctx.create('admission', { name: 'Day-care encounter', number: `DAY-${ctx.all('daycare').length + 1}`, category: 'Day care', bedId: bed.id, admittedAt: ctx.now(), bedHistory: [], isDaycare: true }, 'Admitted', { patientId: patient.id, doctorId: consultant.id, department: consultant.department });
-      const day = ctx.create('daycare', { ...p, name: `Day care ${text(patient.data, 'uhid')}`, admissionId: admission.id, startedAt: ctx.now(), packagePrice: num(pkg.data, 'price') }, 'Active', { patientId: patient.id, doctorId: consultant.id });
+      const day = ctx.create('daycare', { ...p, name: `Day care ${text(patient.data, 'uhid')}`, admissionId: admission.id, startedAt: ctx.now(), packagePrice: num(quote, 'rate'), packageQuote: quote }, 'Active', { patientId: patient.id, doctorId: consultant.id });
       ctx.update(bed, { patientId: patient.id, admissionId: admission.id }, 'Occupied');
-      ctx.charge(patient.id, `Day-care package ${text(pkg.data, 'name')}`, num(pkg.data, 'price'), day.id, {}, admission.id); break;
+      ctx.charge(patient.id, `Day-care package ${text(pkg.data, 'name')}`, num(quote, 'rate'), day.id, { packageQuote: quote }, admission.id); break;
     }
     case 'daycare.finish': {
       const day = ctx.targetOf('daycare'); const admission = ctx.get(text(day.data, 'admissionId'), 'admission');
@@ -313,9 +306,11 @@ export function careCommand(name: string, ctx: Context): boolean {
     case 'package.sell': {
       const patient = ctx.patient(); const pkg = ctx.get(ctx.t('packageId'), 'package');
       requireThat(pkg.status === 'Active', 'Choose an active package.');
-      const pack = ctx.create('packageRun', { name: text(pkg.data, 'name'), packageId: pkg.id, price: num(pkg.data, 'price'), summary: '' }, 'In progress', { patientId: patient.id, doctorId: ctx.t('doctorId') });
+      requireThat(text(pkg.data, 'kind', 'Health check-up') === 'Health check-up', 'Choose a health check-up package for this journey.');
+      const quote = packageQuote(ctx.store, pkg.id, text(patient.data, 'payer', 'Self'));
+      const pack = ctx.create('packageRun', { name: text(pkg.data, 'name'), packageId: pkg.id, price: num(quote, 'rate'), packageQuote: quote, summary: '' }, 'In progress', { patientId: patient.id, doctorId: ctx.t('doctorId') });
       const orders = orderTests(ctx, undefined, patient.id, ctx.t('doctorId'), strings(pkg.data, 'tests'), { priority: 'Routine', history: 'Synthetic health package' }, pack.id);
-      const bill = ctx.charge(patient.id, text(pkg.data, 'name'), num(pkg.data, 'price'), pack.id, { packageId: pkg.id });
+      const bill = ctx.charge(patient.id, text(pkg.data, 'name'), num(quote, 'rate'), pack.id, { packageId: pkg.id, packageQuote: quote });
       for (const order of orders) ctx.update(order, { billId: bill.id });
       ctx.update(pack, { orderIds: orders.map(e => e.id), billId: bill.id }); break;
     }

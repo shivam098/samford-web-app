@@ -1,0 +1,24 @@
+import { build } from 'esbuild';
+import { mkdir, readFile, copyFile, writeFile } from 'node:fs/promises';
+import { resolve, join } from 'node:path';
+import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
+
+const root = process.cwd();
+const pkg = JSON.parse(await readFile('package.json', 'utf8'));
+const manifest = JSON.parse(await readFile('dist-candidate\\build.json', 'utf8'));
+if (manifest.version !== pkg.version) throw new Error('Build the matching candidate before packaging.');
+const source = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+const dirty = Boolean(execFileSync('git', ['status', '--porcelain'], { encoding: 'utf8' }).trim());
+const release = resolve('data', 'releases', `${pkg.version}-${source.slice(0, 8)}-${Date.now()}`);
+await mkdir(join(release, 'public', 'fonts'), { recursive: true });
+await mkdir(join(release, 'assets', 'fonts'), { recursive: true });
+const files = ['index.html', 'main.js', 'main.css', 'sw.js', 'build.json', 'fonts\\NotoSansDevanagari.ttf', 'fonts\\OFL.txt'];
+for (const file of files) await copyFile(join(root, 'dist-candidate', file), join(release, 'public', file));
+for (const file of ['NotoSansDevanagari.ttf', 'OFL.txt', 'source.json']) await copyFile(join(root, 'assets', 'fonts', file), join(release, 'assets', 'fonts', file));
+await build({ entryPoints: ['server/main.ts'], bundle: true, platform: 'node', format: 'esm', packages: 'external', target: 'node24', outfile: join(release, 'server.mjs') });
+const hashes = {};
+for (const file of ['server.mjs', ...files.map(file => join('public', file))]) hashes[file] = createHash('sha256').update(await readFile(join(release, file))).digest('hex');
+await writeFile(join(release, 'release.json'), JSON.stringify({ version: pkg.version, source, dirty, packagedAt: new Date().toISOString(), hashes }, null, 2));
+console.log(`Immutable candidate prepared at ${release}`);
+console.log('No live process, served asset or shared database was changed. Start-Release.ps1 defaults to isolated port/data.');

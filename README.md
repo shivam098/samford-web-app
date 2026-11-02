@@ -2,6 +2,8 @@
 
 A working **public synthetic hospital prototype**, not the earlier PRD viewer. Responsive doctor, administration, staff and patient workspaces share a persistent SQLite mock hospital.
 
+**Version 0.2 is a prepared candidate, not an automatic live upgrade.** Builds write `dist-candidate` only. The existing port-4317 demo and its `dist` assets/database are deliberately left alone until a coordinated restart.
+
 **No tester password is required.** The landing page explicitly signs into a named synthetic persona. Anyone with the temporary public URL can use those personas and change the shared sample records. Do not enter real patient information, real credentials or original hospital media.
 
 ## Run on Windows
@@ -14,19 +16,51 @@ npm run build
 npm start
 ```
 
-Open **http://127.0.0.1:4317**. The production frontend and API are served from one origin, bound only to loopback. This is not a publicly bound development server.
+Open **http://127.0.0.1:4318** for the isolated candidate (`data-candidate\samford.sqlite`). The built frontend and API are served from one origin, bound only to loopback. This is not a publicly bound development server.
 
 Alternatively:
 
 ```powershell
-.\Start-Local.ps1 -Build
+.\Start-Candidate.ps1 -Build
 ```
 
-Stop a foreground run with Ctrl+C. Restarting preserves the data. To use another port, set `$env:PORT` before starting. `SAMFORD_DATA_DIR` can select an existing/private data location before startup; it is not exposed through HTTP.
+Stop a foreground run with Ctrl+C. Restarting preserves the selected data. `Start-Candidate.ps1 -Port <port>` refuses live port 4317. Tests use disposable databases and ephemeral ports.
+
+### Prepare an immutable release; do not silently switch testers
+
+```powershell
+npm run check
+npm run package:candidate
+.\Start-Release.ps1 -ReleaseDirectory 'data\releases\<printed-release-folder>'
+```
+
+Packaging freezes the backend bundle, built assets and licensed fonts in a new checksummed directory. It does not restart anything. The release launcher defaults to **4318 and isolated candidate data**, refuses modified artifacts, and does not kill a process occupying the port. Later builds cannot replace this release's served frontend.
+
+For an explicitly agreed live upgrade:
+
+1. Ask testers to sync/review pending work and close their tabs. Retain the old release and browser profiles; do not clear encrypted drafts.
+2. Stop only the known live server process, not all Node processes. The existing Cloudflare tunnel may keep running against 4317 during the brief outage.
+3. Run `npm run backup:shared`. It takes a consistent SQLite online backup and checks integrity. Do **not** copy only a WAL-active `.sqlite` file.
+4. Run `.\Start-Release.ps1 -ReleaseDirectory 'data\releases\<verified-release-folder>' -Port 4317 -UseSharedData`. This is the explicit shared-data switch. Port binding and frontend-version checks occur before database initialization.
+5. Confirm `/api/health` reports `0.2.0`; reopen/reload the browser and verify the intended persona/worklist. Recheck the existing public HTTPS URL before announcing the switch.
+
+Schema v2 adds staff role metadata, a dual-role sample identity, a canonical synthetic scheme package and missing payer tariffs. Existing clinical/financial records, credentials, receipts, old versions and audit entries are retained. Earlier claims without a canonical package need the explicit **Reconcile an earlier package reference** action and fresh simulated approval; paid bills are not silently repriced. Pending admin account edits may encounter an honest version conflict after metadata migration.
+
+The migration is transactionally idempotent and refuses unsupported/newer schemas. Its tests include an opt-in **read-only online backup of the running v1 database**, migration of that copy, byte-for-byte preservation checks and live-asset fingerprints:
+
+```powershell
+$env:SAMFORD_LIVE_PROOF = '1'
+npm run test:migration
+Remove-Item Env:\SAMFORD_LIVE_PROOF
+```
+
+This opt-in check is only for the original local v1 deployment. Ordinary cloned-project tests skip it explicitly. Results stay in ignored `test-artifacts\migration-live-proof.json`.
+
+Rollback before accepting v2 writes can restore the verified pre-upgrade backup and old frozen runtime. **Do not run the old backend on a database with new v2 writes or overwrite new work to roll back.** After new writes, preserve that database and reconcile/migrate forward instead.
 
 ### Temporary public link
 
-With the local app already running and `cloudflared` installed:
+With the intentionally selected live app already running on 4317 and `cloudflared` installed:
 
 ```powershell
 .\Start-Tunnel.ps1
@@ -54,6 +88,7 @@ Other journeys include insurance, refunds and counter close, purchases/GRNs/stoc
 The landing page's **Test sign-in / onboarding** opens the full synthetic authentication flow:
 
 - Seeded login IDs include `doctor-a`, `doctor-b`, `resident`, `super`, `super-two`, `admin`, `it`, `head`, `auditor`, `desk`, `cashier`, `pharmacy`, `store`, `nurse`, `lab`, `verifier`, `ot`, `mrd`, `services`, `services-two`, `manager`, `manager-two`.
+- `desk-cashier` demonstrates multiple staff roles on one named identity. AJ22 can assign staff-role combinations; the action's effective role is recorded without changing the person. Changing roles invalidates old sessions. Switching roles never permits self-approval or self-verification.
 - Seeded demonstration password: `SamplePass2026!`. This is a deliberately public fixture, not a secret.
 - OTP/authenticator/captcha are explicitly simulated. The generated code is shown so success, expiry and failure/lockout can be tested.
 - Family mobile `9000000001` links only Demo patient A and Demo child A. Another sample family uses `9000000003`.
@@ -95,10 +130,20 @@ After choosing a persona, open **APIs & coverage**:
 - `GET /api/slots?doctorId=...&date=...`: shared availability states without other patients' identities.
 - `GET /api/documents/<id>/file`: authorized real PDF/image bytes.
 - Reports, audited CSV exports and token-only board endpoints are included in the contract.
+- Group handover summaries, package quotes, admission estimates, counter reconciliation, claims and day-end exports are in the contract as well.
 
 Mutations require JSON and `X-Samford-Request: 1`, with a same-origin session cookie. An `Origin` from another host is rejected. Error responses include a stable code, plain-language next step and retriable/conflict metadata; database exceptions are not returned.
 
 User-entered amounts are INR; persisted financial values are integer paise. Snapshotted bill rates do not change when a future tariff is approved. MRP/GST, stock, bed state, result entry/verification/release, report review and discharge gates are separately validated.
+
+### Required variants added in 0.2
+
+- **Paper Rx:** prescriber name/registration/date, readable private scan, reviewed transcription, pharmacist attribution, original-batch dispensing and explicit doctor-controlled substitutions.
+- **Home:** real drag ordering, show/hide, per-card rows, six shortcuts, hospital reset, department locks and own monthly activity numbers. Reset does not erase language or alert preferences.
+- **Handover:** separate consultant/department queue for each open-work group, counts/UHIDs without clinical text, blocked incomplete/unsynced exits and explicit queue claim. Scheduled exits revalidate recipients, new work groups and unsent work at execution.
+- **Roster/OT:** repeat weekly patterns with conflict preview/replacement; emergency displacement atomically validates both slots, preserves the old slot/reason, notifies the displaced surgeon and requires renewed acceptance/checks.
+- **Finance:** explicit payer/package rates, scheme coverage and expiry, visible patient share, independent deduction ownership, original-mode discounted refunds, GST reconciliation, protected applied advances, counted denominations and retryable accounts exports. **The accounting ledger is a PRD non-goal**, not a missing implementation.
+- **Hindi:** doctor/patient action/field/choice labels, key workspace controls and actual Hindi PDFs with an embedded licensed Noto Devanagari font. Authored text is preserved, not translated. Signed consents retain their recorded language. Logical Unicode is included in tagged PDF `ActualText`; naive PDF text extraction may still return shaped visual glyph order.
 
 ## Validation
 
@@ -106,11 +151,11 @@ User-entered amounts are INR; persisted financial values are integer paise. Snap
 npm run check
 ```
 
-This performs TypeScript/build, behavioral HTTP API cases, installed-Microsoft-Edge browser cases, then writes `docs\traceability.json`. Browser tests use Playwright's `msedge` channel. Test databases, screenshots and raw evidence stay in the Git-ignored `test-artifacts` directory; production data is not reset by tests.
+This performs TypeScript/build, behavioral HTTP API and migration cases, installed-Microsoft-Edge browser cases, then writes `docs\traceability.json`. Coverage generation fails unless **every one of the 87 journeys has substantive browser evidence**, separate from rendering. Browser tests use Playwright's `msedge` channel. Test databases, screenshots and raw evidence stay in the Git-ignored `test-artifacts` directory; shared data is not reset by tests.
 
 The API tests cover **primary substantive behavior for all 87 named journeys**, cross-role handoffs, role denials, invalid transitions, idempotency, conflicts, corrections, payment failures, independent approvals and SQLite restart persistence.
 
-Browser tests **actually operate** registration, booking, check-in, consultation, prescriptions/dispensing, payments, pen attachment, enlarged text, locking and offline/reload/replay/conflict/partial-failure recovery. All 87 journey surfaces also receive a render/overflow check, recorded separately: **a route rendering is not behavioral proof for all of its substeps**.
+Browser tests **actually operate primary actions/read interactions across all 87 named journeys**, including password/OTP onboarding, cross-role clinical/financial handoffs, the completeness variants, report filters/downloads and offline/reload/replay/conflict/partial-failure recovery. Every evidence row describes the exact interaction and resulting assertion. All 87 surfaces also receive a separate render/overflow check: **a route rendering is not behavioral proof for all of its substeps**.
 
 This is not a claim that every one of the 349 illustrated PRD states, every optional branch, five-lakh-patient scale or a certified accessibility/privacy/financial standard has been reproduced and validated.
 
@@ -118,11 +163,11 @@ This is not a claim that every one of the 349 illustrated PRD states, every opti
 
 - **Entirely simulated providers:** ETHER, ABDM/ABHA, SMS, WhatsApp, payments, insurers/schemes, LIS/RIS/PACS, video/telephone and signing. Requests, responses, failed attempts, follow-ups and relevant statuses are real persisted demo records; no external effects occur.
 - Dictation and voice search use reviewed transcript simulators. Pen drawing and saved handwriting images work; handwriting-to-text recognition is simulated.
-- Generated PDF labels are English. Hindi doctor navigation and preference persistence work; full Hindi content/field/PDF localization is incomplete.
-- One active role per named persona. Production multi-role accounts, authenticator enrollment/recovery codes, allowed-network policies, offline access leases, encryption/key recovery and device-management guarantees are not implemented as production security.
+- Technical record keys, developer diagnostics, server validation messages and some explanatory copy remain English. Hindi field/PDF support is not a claim of complete human linguistic review or PDF/UA certification.
+- Staff identities can hold several staff roles; clinical/admin identities cannot be blended into them. Authenticator enrollment/recovery codes, allowed-network policies, offline access leases, encryption/key recovery and device-management guarantees are not implemented as production security.
 - No clinical drug-interaction knowledge base, diagnosis engine or treatment recommendations. The synthetic allergy/duplicate and sample critical-value guards are test fixtures, not a clinical safety system.
 - Camera/scanner/printer hardware and real signatures use explicit upload/PDF/reference boundaries. Browsers cannot guarantee OS screenshot prevention, private gallery behavior, native biometric unlock or remote OS wipe.
-- Some detailed PRD variants still need dedicated work beyond the tested primary paths: paper-prescription pharmacy intake, rich drag-and-drop Home layout, separate per-handover-group receivers, advanced roster repetition, emergency OT rescheduling, full payer package/ledger rules and granular role combinations. They are **not represented as verified completed branches**.
+- The listed completeness fixes are implemented and covered by dedicated API/browser cases. Other optional branches and all 349 illustrated states are **not** claimed exhaustively verified. The exact required/excluded scope is in `docs\prd-completeness.json`.
 - Staff-owned synthetic billing reconciles AD08/SD06 for this demo only. AJ22 staff administration is the SO02 demo assumption. ETHER authority/migration, clinical policy and production rollout remain open; no real records are migrated.
 
 ## Code map
@@ -134,6 +179,7 @@ This is not a claim that every one of the 349 illustrated PRD states, every opti
 | Scoped workflow transactions | `server\engine.ts`, `server\context.ts`, `server\clinical.ts`, `server\admin.ts`, `server\commerce.ts`, `server\care.ts`, `server\services.ts` |
 | PDFs and reporting | `server\documents.ts`, `server\reporting.ts` |
 | Frontend and local outbox | `src\main.tsx`, `src\pages.tsx`, `src\forms.tsx`, `src\storage.ts`, `src\sw.js`, `src\styles.css` |
-| Behavior and browser evidence | `tests\api.test.ts`, `tests\browser.test.ts`, `scripts\coverage.ts` |
+| Behavior, browser and migration evidence | `tests\api.test.ts`, `tests\completeness-api.test.ts`, `tests\browser.test.ts`, `tests\completeness-browser.test.ts`, `tests\journey-browser.test.ts`, `tests\migration.test.ts`, `scripts\coverage.ts` |
+| Release isolation | `scripts\release.mjs`, `scripts\backup.mjs`, `Start-Candidate.ps1`, `Start-Release.ps1` |
 
 Original PRDs/session archives are read-only source references outside this project. They, their media, actual records and any real credentials were not copied here.

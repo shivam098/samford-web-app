@@ -1,0 +1,13 @@
+{
+  "family": "Noto Sans Devanagari",
+  "license": "SIL Open Font License 1.1",
+  "copyright": "2022 The Noto Project Authors",
+  "source": "https://github.com/google/fonts/tree/main/ofl/notosansdevanagari",
+  "fontUrl": "https://raw.githubusercontent.com/google/fonts/main/ofl/notosansdevanagari/NotoSansDevanagari%5Bwdth%2Cwght%5D.ttf",
+  "fontGitBlob": "163f04bddc5a96fc523e4080466cac5c588f6594",
+  "fontSha256": "14ec4af41f27482216d1c2229f417ff9b1425e1babb014e57d1d40d03229853e",
+  "licenseUrl": "https://raw.githubusercontent.com/google/fonts/main/ofl/notosansdevanagari/OFL.txt",
+  "licenseGitBlob": "cd2cc5c94b4151933eba6ee508e3975274d6fa07",
+  "licenseSha256": "a216f6f8d85c7228093e0ee5e258d9d377e6671f68acb4db1930b29583d0f331",
+  "modifications": "None. Font bytes and license are unchanged from the verified upstream blobs."
+}

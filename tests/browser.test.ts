@@ -6,7 +6,6 @@ import { chromium, expect, type Page, type Locator } from '@playwright/test';
 import type { Server } from 'node:http';
 import { createApplication } from '../server/app.js';
 import { journeys } from '../shared/journeys.js';
-import { commands } from '../shared/commands.js';
 import { text, num, rows, type Data, type Role } from '../shared/model.js';
 
 mkdirSync('test-artifacts', { recursive: true });
@@ -15,7 +14,7 @@ const rendered = new Set<string>();
 after(() => writeFileSync('test-artifacts\\browser-evidence.json', JSON.stringify({ generatedAt: new Date().toISOString(), behavioralEvidence: evidence, renderedJourneys: [...rendered].sort(), note: 'Rendered journeys are UI smoke evidence only; do not treat them as behavioral workflow proof.' }, null, 2)));
 async function fixture() {
   const dir = mkdtempSync(join(resolve('test-artifacts'), 'browser-'));
-  const runtime = createApplication({ database: join(dir, 'test.sqlite'), test: true });
+  const runtime = createApplication({ database: join(dir, 'test.sqlite'), dist: 'dist-candidate', test: true });
   const server: Server = await new Promise(resolve => { const server = runtime.app.listen(0, '127.0.0.1', () => resolve(server)); });
   const url = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
   const browser = await chromium.launch({ channel: 'msedge', headless: true });
@@ -30,14 +29,14 @@ async function fixture() {
       const actor = runtime.store.person(persona);
       const portal = ['doctor', 'resident'].includes(actor.role) ? 'Doctor' : ['superadmin', 'admin', 'head', 'it', 'auditor'].includes(actor.role) ? 'Administration' : actor.role === 'patient' ? 'Patient' : 'Staff';
       await page.getByRole('button', { name: portal, exact: true }).click();
-      await page.getByRole('button', { name: new RegExp(actor.name) }).click();
+      await page.locator(`[data-persona-id="${persona}"]`).click();
       await expect(page.locator('.app-shell')).toBeVisible();
     }
     return { page, context };
   }
   async function go(page: Page, journey: string, command: string, target?: string): Promise<Locator> {
     await page.goto(`${url}/#journey/${journey}`);
-    await expect(page.getByRole('heading', { name: journeys.find(j => j.id === journey)!.title, exact: true }).first()).toBeVisible();
+    await expect(page.locator(`[data-journey-id="${journey}"]`)).toBeVisible();
     const picker = page.locator('.action-selector select');
     await picker.selectOption(command);
     const form = page.locator(`form[data-command="${command}"]`);
@@ -57,11 +56,11 @@ async function fixture() {
   }
   async function send(page: Page, form: Locator, command: string, expected = 200) {
     const response = page.waitForResponse(response => response.url().endsWith(`/api/commands/${command}`) && response.request().method() === 'POST');
-    await form.getByRole('button', { name: commands.find(c => c.name === command)!.label, exact: true }).click();
+    await form.locator('.form-footer').getByRole('button').click();
     const result = await response;
     const body = await result.json();
     assert.equal(result.status(), expected, `${command}: ${JSON.stringify(body)}`);
-    if (expected === 200) await expect.poll(async () => page.locator('.sync-pill').innerText()).toContain('Hospital connected');
+    if (expected === 200) await expect.poll(async () => page.locator('.sync-pill').innerText()).toMatch(/Hospital connected|अस्पताल से जुड़ा/);
     return body;
   }
   return { ...runtime, browser, url, page, go, fill, send, failures,

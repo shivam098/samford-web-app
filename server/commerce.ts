@@ -2,10 +2,14 @@ import { randomUUID } from 'node:crypto';
 import { text, num, bool, rows, istDate, type Data, type Entity } from '../shared/model.js';
 import { Context } from './context.js';
 import { requireThat } from './store.js';
+import { checkedMedicines } from './clinical.js';
+import { documentCommand } from './documents.js';
+import { packageQuote, readPayerRates, completeRefund, refundNeedsApproval, linePaidShare, parseDenominations, counterSummary, discountBill, requireUnusedAdvance } from './finance.js';
+import { denominationTotal, coveredChargeTypes } from '../shared/finance.js';
 
 const paise = (value: number) => Math.round(value * 100);
 function requireCounter(ctx: Context) {
-  requireThat(!ctx.all('counterClose').some(e => text(e.data, 'counter') === ctx.actor.counter && text(e.data, 'date') === istDate(ctx.now()) && ['Closed', 'Pending approval'].includes(e.status)), 'This counter is closed or awaiting reconciliation. Use another open counter or open the next day.');
+  requireThat(!ctx.all('counterClose').some(e => text(e.data, 'counter') === ctx.actor.counter && text(e.data, 'date') === istDate(ctx.now()) && ['Closed', 'Accounts sent', 'Pending approval'].includes(e.status)), 'This counter is closed or awaiting reconciliation. Use another open counter or open the next day.');
 }
 function issueBatch(ctx: Context, batchId: string, itemId: string, quantity: number, store = 'Pharmacy') {
   const batch = ctx.get(batchId, 'batch');
@@ -21,17 +25,10 @@ function approvalEffect(ctx: Context, approval: Entity) {
   requireThat(effect && typeof effect === 'object' && !Array.isArray(effect), 'Approval effect is unavailable. Raise a new request.');
   switch (kind) {
     case 'Discount': {
-      requireThat(target.status === 'Unpaid' && num(target.data, 'paid') === 0, 'This bill changed after the discount request.');
-      const discount = Math.round(num(target.data, 'subtotal') * num(effect, 'percent') / 100);
-      ctx.update(target, { discount, total: num(target.data, 'subtotal') - discount, discountStatus: 'Approved', approvalId: approval.id }); break;
+      discountBill(ctx, target, num(effect, 'percent'), text(approval.data, 'reason'), approval.id); break;
     }
     case 'Refund': {
-      const bill = ctx.get(text(target.data, 'billId'), 'bill');
-      const credited = ctx.all('refund').filter(e => e.status === 'Completed' && text(e.data, 'billId') === bill.id).reduce((sum, e) => sum + num(e.data, 'amount'), 0);
-      requireThat(credited + num(target.data, 'amount') <= num(bill.data, 'paid'), 'This refund would exceed the remaining paid amount.');
-      const payment = ctx.all('payment').find(e => text(e.data, 'billId') === bill.id && e.status === 'Paid');
-      ctx.update(target, { completedAt: ctx.now(), creditNumber: `CREDIT-${ctx.all('refund').filter(e => e.status === 'Completed').length + 1}`, originalModes: payment ? rows(payment.data, 'payments') : [], approvalId: approval.id }, 'Completed');
-      ctx.update(bill, { refunded: num(bill.data, 'refunded') + num(target.data, 'amount') }); break;
+      completeRefund(ctx, target, approval.id); break;
     }
     case 'Purchase': ctx.update(target, { approvalId: approval.id }, 'Approved'); break;
     case 'Write-off': {
@@ -43,6 +40,11 @@ function approvalEffect(ctx: Context, approval: Entity) {
     case 'Tariff':
       requireThat(text(target.data, 'effective') > istDate(ctx.now()), 'The effective date is no longer in the future. Submit a revised price proposal.');
       ctx.update(target, { approvalId: approval.id }, 'Active'); break;
+    case 'Package':
+      ctx.update(target, { approvalId: approval.id }, 'Active'); break;
+    case 'Package rates':
+      requireThat(text(target.data, 'effective') > istDate(ctx.now()), 'The package rate’s effective date passed. Submit a revised future date.');
+      ctx.update(target, { approvalId: approval.id }, 'Active'); break;
     case 'Item price':
       requireThat(text(target.data, 'effective') > istDate(ctx.now()), 'The effective date passed. Propose a new future date.');
       ctx.update(target, { approvalId: approval.id }, 'Approved'); break;
@@ -52,8 +54,15 @@ function approvalEffect(ctx: Context, approval: Entity) {
       ctx.update(batch, { quantity: num(target.data, 'counted') });
       ctx.update(target, { approvalId: approval.id }, 'Applied'); break;
     }
-    case 'Cash difference': ctx.update(target, { approvalId: approval.id, closedAt: ctx.now() }, 'Closed'); break;
-    case 'Claim deduction': ctx.update(target, { approvalId: approval.id, settledAt: ctx.now() }, 'Settled'); break;
+    case 'Cash difference': ctx.update(target, { approvalId: approval.id, closedAt: ctx.now(), signedOffBy: ctx.actor.id, signedOffAt: ctx.now() }, 'Closed'); break;
+    case 'Claim deduction': {
+      ctx.update(target, { approvalId: approval.id, settledAt: ctx.now() }, 'Settled');
+      if (text(target.data, 'deductionOwner') === 'Patient') {
+        const bill = ctx.charge(target.patientId!, 'Approved insurer deduction - patient share', num(target.data, 'deduction'), `${target.id}-deduction`, { claimId: target.id }, text(target.data, 'admissionId'));
+        ctx.update(bill, { postSettlement: true, approvalId: approval.id });
+      } else ctx.create('accountsAdjustment', { name: 'Approved hospital-owned insurer deduction', claimId: target.id, amount: num(target.data, 'deduction'), owner: 'Hospital', approvalId: approval.id, ledgerMaintained: false }, 'Ready for accounts', { patientId: target.patientId });
+      break;
+    }
     case 'Discharge credit': ctx.update(target, { creditApproved: true, creditApproval: approval.id }); break;
     default: requireThat(false, 'This approval type needs support. No change was applied.');
   }
@@ -61,9 +70,11 @@ function approvalEffect(ctx: Context, approval: Entity) {
 export function commerceCommand(name: string, ctx: Context): boolean {
   const p = ctx.p;
   switch (name) {
-    case 'counter.choose':
-      ctx.actor.counter = ctx.t('counter'); ctx.actor.preferences.printer = ctx.t('printer'); ctx.store.savePerson(ctx.actor);
-      ctx.result = { counter: ctx.actor.counter, printer: ctx.t('printer') }; break;
+    case 'counter.choose': {
+      const person = ctx.store.person(ctx.actor.id);
+      person.counter = ctx.t('counter'); person.preferences = { ...person.preferences, printer: ctx.t('printer') }; ctx.store.savePerson(person);
+      ctx.result = { counter: person.counter, printer: ctx.t('printer') }; break;
+    }
     case 'bill.service': {
       const patient = ctx.patient(); const selected = ctx.get(ctx.t('tariffId'), 'tariff');
       const tariff = ctx.tariff(text(selected.data, 'code'), text(patient.data, 'payer'));
@@ -75,17 +86,17 @@ export function commerceCommand(name: string, ctx: Context): boolean {
     case 'bill.discount': {
       const bill = ctx.targetOf('bill');
       requireThat(num(bill.data, 'paid') === 0 && text(bill.data, 'discountStatus') !== 'Pending', 'This bill is paid or already awaiting discount approval.');
-      const threshold = num(ctx.store.setting<Data>('rules', {}), 'discount', 10);
+      const threshold = ctx.actor.role === 'pharmacist' ? 5 : num(ctx.store.setting<Data>('rules', {}), 'discount', 10);
       if (ctx.n('percent') > threshold || num(bill.data, 'subtotal') * ctx.n('percent') / 100 > 50000) {
         ctx.update(bill, { discountStatus: 'Pending', discountReason: ctx.t('reason') });
         ctx.approval('Discount', bill.id, { percent: ctx.n('percent') }, ctx.t('reason'), Math.round(num(bill.data, 'subtotal') * ctx.n('percent') / 100));
       } else {
-        const discount = Math.round(num(bill.data, 'subtotal') * ctx.n('percent') / 100);
-        ctx.update(bill, { discount, total: num(bill.data, 'subtotal') - discount, discountReason: ctx.t('reason'), discountStatus: 'Approved' });
+        discountBill(ctx, bill, ctx.n('percent'), ctx.t('reason'));
       } break;
     }
     case 'bill.pay': {
       const bill = ctx.targetOf('bill'); ctx.patient(bill.patientId);
+      if (bool(bill.data, 'isAdvance')) requireThat(!text(ctx.get(text(bill.data, 'admissionId'), 'admission').data, 'finalBillId'), 'A final bill already exists. Pay that bill instead of this earlier deposit request.');
       requireThat(text(bill.data, 'discountStatus') !== 'Pending', 'This discount still needs approval. Payment and printing are on hold.');
       if (ctx.actor.role !== 'patient') requireCounter(ctx);
       const payments = rows(p, 'payments');
@@ -107,8 +118,35 @@ export function commerceCommand(name: string, ctx: Context): boolean {
     case 'claim.create': {
       const patient = ctx.patient(); const admission = ctx.get(ctx.t('admissionId'), 'admission');
       requireThat(admission.patientId === patient.id, 'The patient and admission must match.');
-      requireThat(ctx.n('amount') <= ctx.n('cover'), 'Requested amount exceeds the simulated cover. Review the payer share.');
-      ctx.create('claim', { ...p, name: `${ctx.t('payer')} pre-authorisation`, requested: paise(ctx.n('amount')), cover: paise(ctx.n('cover')), simulated: true, history: [{ status: 'Draft', at: ctx.now(), actor: ctx.actor.id }] }, 'Draft', { patientId: patient.id, doctorId: admission.doctorId }); break;
+      requireThat(ctx.t('payer') === text(patient.data, 'payer'), 'Use the payer registered for this patient.');
+      const quote = packageQuote(ctx.store, ctx.t('packageId'), ctx.t('payer'));
+      if (['Ayushman', 'CGHS'].includes(ctx.t('payer'))) {
+        requireThat(text(quote, 'kind') === 'Scheme treatment', 'Choose a scheme-treatment master package.');
+        requireThat(paise(ctx.n('amount')) === num(quote, 'rate'), 'The requested scheme amount must equal the published package rate. Cashiers cannot type a different price.');
+      }
+      requireThat(!ctx.all('claim').some(claim => text(claim.data, 'admissionId') === admission.id && !['Rejected', 'Eligibility failed', 'Cancelled'].includes(claim.status) &&
+        (!text(claim.data, 'validUntil') || text(claim.data, 'validUntil') >= istDate(ctx.now()))), 'This admission already has an open or valid claim. Continue that claim instead of creating duplicate cover.');
+      const outcome = ctx.store.setting<Data>('faults', {}).provider === 'Failure' ? 'Provider unavailable' : ctx.t('eligibilityOutcome', 'Eligible');
+      requireThat(outcome !== 'Eligible' || ctx.n('amount') <= ctx.n('cover'), 'Requested amount exceeds the simulated cover. Review the payer share.');
+      const state = outcome === 'Eligible' ? 'Draft' : 'Eligibility failed';
+      ctx.create('claim', { ...p, name: `${ctx.t('payer')} pre-authorisation`, amount: paise(ctx.n('amount')), requested: paise(ctx.n('amount')), cover: paise(ctx.n('cover')), packageQuote: quote,
+        diagnosisFromDoctor: text(admission.data, 'diagnosis'), simulated: true, eligibilityAttempts: [{ at: ctx.now(), outcome, actor: ctx.actor.id, simulated: true }],
+        history: [{ status: state, at: ctx.now(), actor: ctx.actor.id }] }, state, { patientId: patient.id, doctorId: admission.doctorId });
+      ctx.result = { eligibility: outcome }; break;
+    }
+    case 'claim.retryEligibility': {
+      const claim = ctx.targetOf('claim');
+      const outcome = ctx.store.setting<Data>('faults', {}).provider === 'Failure' ? 'Provider unavailable' : ctx.t('outcome');
+      requireThat(outcome !== 'Eligible' || paise(ctx.n('cover')) >= num(claim.data, 'requested'), 'Available cover is below the request. Reconcile the package or request before retrying.');
+      ctx.update(claim, { cover: paise(ctx.n('cover')), eligibilityAttempts: [...rows(claim.data, 'eligibilityAttempts'), { at: ctx.now(), outcome, reason: ctx.t('reason'), actor: ctx.actor.id, simulated: true }] }, outcome === 'Eligible' ? 'Draft' : 'Eligibility failed'); break;
+    }
+    case 'claim.reconcilePackage': {
+      const claim = ctx.targetOf('claim'); const admission = ctx.get(text(claim.data, 'admissionId'), 'admission');
+      requireThat(!text(admission.data, 'finalBillId'), 'A final bill already exists. Do not silently rewrite its agreed package.');
+      const quote = packageQuote(ctx.store, ctx.t('packageId'), text(claim.data, 'payer'));
+      if (['Ayushman', 'CGHS'].includes(text(claim.data, 'payer'))) requireThat(text(quote, 'kind') === 'Scheme treatment', 'Choose a scheme-treatment master package.');
+      ctx.update(claim, { packageId: ctx.t('packageId'), packageQuote: quote, amount: num(quote, 'rate'), requested: num(quote, 'rate'), approvedAmount: 0, validUntil: '',
+        history: [...rows(claim.data, 'history'), { status: 'Package reconciled; fresh approval required', at: ctx.now(), actor: ctx.actor.id, reason: ctx.t('reason') }] }, 'Draft'); break;
     }
     case 'claim.send': {
       const claim = ctx.targetOf('claim');
@@ -120,20 +158,22 @@ export function commerceCommand(name: string, ctx: Context): boolean {
     }
     case 'claim.response': {
       const claim = ctx.targetOf('claim');
-      if (ctx.t('decision') === 'Approved') requireThat(paise(ctx.n('approvedAmount')) <= num(claim.data, 'cover') && ctx.n('approvedAmount') >= 0 && ctx.t('validUntil') >= istDate(ctx.now()), 'Enter an approved amount within cover and a valid expiry date.');
+      if (ctx.t('decision') === 'Approved') requireThat(paise(ctx.n('approvedAmount')) <= Math.min(num(claim.data, 'cover'), num(claim.data, 'requested')) && ctx.n('approvedAmount') >= 0 && ctx.t('validUntil') >= istDate(ctx.now()), 'Enter an approved amount within requested cover and a valid expiry date.');
       ctx.update(claim, { approvedAmount: paise(ctx.n('approvedAmount')), validUntil: ctx.t('validUntil'), response: ctx.t('response'), history: [...rows(claim.data, 'history'), { status: ctx.t('decision'), at: ctx.now(), actor: ctx.actor.id }] }, ctx.t('decision')); break;
     }
     case 'claim.final': {
       const claim = ctx.targetOf('claim'); const admission = ctx.get(text(claim.data, 'admissionId'), 'admission');
       requireThat(admission.status === 'Discharged', 'Submit the final claim only after discharge.');
-      ctx.update(claim, { claimedAt: ctx.now(), finalBillId: text(admission.data, 'finalBillId') }, 'Claim sent'); break;
+      const bill = ctx.get(text(admission.data, 'finalBillId'), 'bill');
+      ctx.update(claim, { claimedAt: ctx.now(), finalBillId: bill.id, claimedAmount: Math.min(num(claim.data, 'approvedAmount'), num(bill.data, 'insurerShare')) }, 'Claim sent'); break;
     }
     case 'claim.settle': {
       const claim = ctx.targetOf('claim');
       requireThat(claim.status === 'Claim sent', 'Submit the final discharge claim before settlement.');
       const settled = paise(ctx.n('settled'));
-      requireThat(settled <= num(claim.data, 'approvedAmount'), 'Settlement cannot exceed the approved amount.');
-      const deduction = num(claim.data, 'approvedAmount') - settled;
+      const claimed = num(claim.data, 'claimedAmount', num(claim.data, 'approvedAmount'));
+      requireThat(settled <= claimed, 'Settlement cannot exceed the final claimed amount.');
+      const deduction = claimed - settled;
       ctx.update(claim, { settled, deduction, deductionOwner: ctx.t('deductionOwner'), reason: ctx.t('reason') }, deduction ? 'Deduction approval pending' : 'Settled');
       if (deduction) ctx.approval('Claim deduction', claim.id, {}, ctx.t('reason'), deduction); break;
     }
@@ -143,31 +183,56 @@ export function commerceCommand(name: string, ctx: Context): boolean {
       const line = rows(bill.data, 'lines').find(line => text(line, 'id') === ctx.t('lineId'));
       requireThat(line, 'Choose a valid bill line ID.');
       const value = paise(ctx.n('amount'));
-      const netLine = Math.round(num(line, 'total') * num(bill.data, 'total') / Math.max(1, num(bill.data, 'subtotal')));
+      requireUnusedAdvance(ctx, bill, value);
+      const netLine = linePaidShare(bill, ctx.t('lineId'));
       const prior = ctx.all('refund').filter(e => text(e.data, 'billId') === bill.id && text(e.data, 'lineId') === ctx.t('lineId') && e.status !== 'Declined').reduce((n, e) => n + num(e.data, 'amount'), 0);
       requireThat(value > 0 && value + prior <= netLine, 'Refund exceeds the remaining discounted paid amount for this line.');
-      const refund = ctx.create('refund', { ...p, name: `Refund ${text(bill.data, 'number')}`, amount: value }, 'Pending approval', { patientId: bill.patientId });
-      ctx.approval('Refund', refund.id, {}, ctx.t('reason'), value); break;
+      const refund = ctx.create('refund', { ...p, name: `Refund ${text(bill.data, 'number')}`, amount: value, counter: ctx.actor.counter }, 'Pending approval', { patientId: bill.patientId });
+      if (ctx.t('returnId')) {
+        const returned = ctx.get(ctx.t('returnId'), 'return');
+        requireThat(returned.status === 'Credit needs review' && text(returned.data, 'dispenseId') === text(bill.data, 'sourceId') && num(returned.data, 'credit') === value, 'Choose this bill’s unresolved pharmacy credit with the exact recorded amount.');
+        ctx.update(returned, { pendingRefundId: refund.id }, 'Refund approval pending');
+      }
+      if (refundNeedsApproval(ctx, bill, value)) ctx.approval('Refund', refund.id, {}, ctx.t('reason'), value);
+      else completeRefund(ctx, refund);
+      break;
     }
     case 'counter.close': {
       requireCounter(ctx);
-      const payments = ctx.all('payment').filter(e => e.status === 'Paid' && text(e.data, 'counter') === ctx.actor.counter && istDate(e.createdAt) === istDate(ctx.now()));
-      const cash = payments.flatMap(e => rows(e.data, 'payments')).filter(p => text(p, 'mode') === 'Cash').reduce((sum, p) => sum + num(p, 'amount'), 0);
-      const refunds = ctx.all('refund').filter(e => e.status === 'Completed' && istDate(text(e.data, 'completedAt')) === istDate(ctx.now()) && payments.some(p => text(p.data, 'billId') === text(e.data, 'billId'))).reduce((sum, e) => {
-        const modes = rows(e.data, 'originalModes'); const total = modes.reduce((n, p) => n + num(p, 'amount'), 0);
-        const cashPart = modes.filter(p => text(p, 'mode') === 'Cash').reduce((n, p) => n + num(p, 'amount'), 0);
-        return sum + Math.round(num(e.data, 'amount') * cashPart / Math.max(1, total));
-      }, 0);
-      const counted = paise(ctx.n('countedCash')); const expected = cash - refunds; const difference = counted - expected;
+      const denominations = parseDenominations(p.denominations);
+      requireThat(denominationTotal(denominations) === ctx.n('countedCash'), 'Counted cash must equal the denomination breakdown.');
+      const summary = counterSummary(ctx.store, ctx.actor.counter);
+      const counted = paise(ctx.n('countedCash')); const expected = num(summary, 'expectedCash'); const difference = counted - expected;
       requireThat(difference === 0 || ctx.t('reason'), 'Enter a reason for the cash difference.');
       const needsApproval = Math.abs(difference) > paise(num(ctx.store.setting<Data>('rules', {}), 'cashDifference', 100));
-      const close = ctx.create('counterClose', { ...p, name: `${ctx.actor.counter} ${istDate(ctx.now())}`, counter: ctx.actor.counter, date: istDate(ctx.now()), expected, counted, difference, receipts: payments.map(e => e.id), net: payments.reduce((n, e) => n + num(e.data, 'total'), 0) - refunds }, needsApproval ? 'Pending approval' : 'Closed');
+      const close = ctx.create('counterClose', { ...summary, ...p, countedCash: counted, denominations, name: `${ctx.actor.counter} ${istDate(ctx.now())}`, expected, counted, difference,
+        signedOffBy: needsApproval ? '' : ctx.actor.id, signedOffAt: needsApproval ? '' : ctx.now() }, needsApproval ? 'Pending approval' : 'Closed');
       if (needsApproval) ctx.approval('Cash difference', close.id, {}, ctx.t('reason'), Math.abs(difference)); break;
+    }
+    case 'counter.sendAccounts': {
+      const close = ctx.targetOf('counterClose');
+      requireThat(ctx.actor.role === 'manager' || close.createdBy === ctx.actor.id, 'Only the counter owner or operations may send this report.');
+      const failed = ctx.store.setting<Data>('faults', {}).provider === 'Failure';
+      ctx.update(close, { accountsAttempts: [...rows(close.data, 'accountsAttempts'), { at: ctx.now(), by: ctx.actor.id, status: failed ? 'Failed' : 'Delivered', simulated: true }], ledgerMaintained: false }, failed ? 'Closed' : 'Accounts sent');
+      ctx.result = { delivery: failed ? 'Failed - retry after restoring the simulated provider' : 'Simulated delivery only; no ledger created' }; break;
     }
     case 'pharmacy.receive':
       ctx.update(ctx.targetOf('rx'), { receivedBy: ctx.actor.id, receivedAt: ctx.now() }, 'Received'); break;
+    case 'pharmacy.paperRx': {
+      const patient = ctx.patient();
+      requireThat(ctx.t('prescriptionDate') <= istDate(ctx.now()), 'The paper prescription cannot be dated in the future.');
+      const lines = checkedMedicines(ctx, patient.id, rows(p, 'lines'));
+      const upload = new Context(ctx.store, ctx.actor, { ...ctx.request, payload: { patientId: patient.id, kind: 'Paper prescription', file: p.file, synthetic: true } });
+      documentCommand('document.upload', upload); ctx.touched.push(...upload.touched);
+      ctx.create('rx', { name: `Paper prescription - ${ctx.t('prescriberName')}`, source: 'Paper', prescriberName: ctx.t('prescriberName'), prescriberRegistration: ctx.t('registration'),
+        prescriptionDate: ctx.t('prescriptionDate'), scanDocumentId: upload.touched[0], lines, rxVersion: 1, enteredBy: ctx.actor.id,
+        authorId: `paper:${ctx.t('registration')}`, receivedAt: ctx.now(), receivedBy: ctx.actor.id, attestation: 'Synthetic paper transcription; not a new clinical prescription' },
+      'Received', { patientId: patient.id, doctorId: ctx.t('reviewingDoctorId') || undefined });
+      break;
+    }
     case 'pharmacy.question': {
       const rx = ctx.targetOf('rx'); const line = rows(rx.data, 'lines').find(l => text(l, 'id') === ctx.t('lineId'));
+      requireThat(rx.doctorId && ctx.store.person(rx.doctorId).state === 'Active', 'No active in-app consultant can authorize this paper prescription’s substitution. Keep the original or obtain a newly reviewed prescription.');
       requireThat(line, 'Choose an existing prescription line.');
       const original = ctx.get(text(line, 'itemId'), 'item'); const proposed = ctx.get(ctx.t('proposedItemId'), 'item');
       requireThat(proposed.status === 'Active' && proposed.id !== original.id && text(original.data, 'salt') === text(proposed.data, 'salt') && text(original.data, 'strength') === text(proposed.data, 'strength'), 'The proposed substitute must be a different active item with the same salt and strength.');
@@ -199,17 +264,29 @@ export function commerceCommand(name: string, ctx: Context): boolean {
       requireThat(new Date(ctx.now()).getTime() - new Date(dispense.createdAt).getTime() <= 7 * 86400000, 'This issue is outside the seven-day return window.');
       requireThat(quantity <= num(dispense.data, 'quantity') - num(dispense.data, 'returned'), 'You cannot return more than the remaining issued quantity.');
       requireThat(!bool(item.data, 'coldChain'), 'Cold-chain items cannot be returned for resale.');
-      const credit = Math.round(num(dispense.data, 'total') * quantity / num(dispense.data, 'quantity'));
+      const bill = ctx.get(text(dispense.data, 'billId'), 'bill');
+      const originalNet = num(bill.data, 'total') + num(bill.data, 'returnCredit');
+      const priorCredits = ctx.all('return').filter(entry => text(entry.data, 'dispenseId') === dispense.id).reduce((sum, entry) => sum + num(entry.data, 'credit'), 0);
+      const remaining = num(dispense.data, 'quantity') - num(dispense.data, 'returned');
+      const credit = quantity === remaining ? originalNet - priorCredits : Math.floor(originalNet * quantity / num(dispense.data, 'quantity'));
+      requireThat(credit >= 0 && credit + priorCredits <= originalNet, 'This return would exceed the original discounted charge.');
       const batch = ctx.get(text(dispense.data, 'batchId'), 'batch');
       if (ctx.t('condition') === 'Unopened') ctx.update(batch, { quantity: num(batch.data, 'quantity') + quantity });
       else ctx.create('damaged', { name: text(item.data, 'name'), batchId: batch.id, quantity, reason: ctx.t('reason') }, 'Quarantined');
       ctx.update(dispense, { returned: num(dispense.data, 'returned') + quantity });
-      const bill = ctx.get(text(dispense.data, 'billId'), 'bill');
-      const ret = ctx.create('return', { ...p, name: `Return ${text(item.data, 'name')}`, dispenseId: dispense.id, batchId: batch.id, credit }, 'Credited', { patientId: dispense.patientId });
-      if (bill.status === 'Paid') {
-        const refund = ctx.create('refund', { name: 'Pharmacy return credit', billId: bill.id, lineId: text(rows(bill.data, 'lines')[0], 'id'), amount: credit, reason: ctx.t('reason'), returnId: ret.id }, 'Pending approval', { patientId: bill.patientId });
-        ctx.approval('Refund', refund.id, {}, ctx.t('reason'), credit);
-      } else ctx.update(bill, { total: num(bill.data, 'total') - credit, returnCredit: num(bill.data, 'returnCredit') + credit }, num(bill.data, 'total') - credit === 0 ? 'Paid' : bill.status);
+      const ret = ctx.create('return', { ...p, name: `Return ${text(item.data, 'name')}`, dispenseId: dispense.id, batchId: batch.id, credit }, bill.status === 'Paid' && credit > 0 ? 'Refund approval pending' : 'Credited', { patientId: dispense.patientId });
+      if (bill.status === 'Paid' && credit > 0) {
+        const refund = ctx.create('refund', { name: 'Pharmacy return credit', billId: bill.id, lineId: text(rows(bill.data, 'lines')[0], 'id'), amount: credit, reason: ctx.t('reason'), returnId: ret.id, counter: ctx.actor.counter }, 'Pending approval', { patientId: bill.patientId });
+        if (refundNeedsApproval(ctx, bill, credit)) ctx.approval('Refund', refund.id, {}, ctx.t('reason'), credit);
+        else completeRefund(ctx, refund);
+      } else if (bill.status !== 'Paid') {
+        const sourceLine = rows(bill.data, 'lines')[0] ?? {};
+        const taxable = originalNet ? Math.round(num(sourceLine, 'taxable') * credit / originalNet) : 0;
+        const tax = credit - taxable;
+        ctx.update(bill, { total: num(bill.data, 'total') - credit, returnCredit: num(bill.data, 'returnCredit') + credit,
+          lines: [...rows(bill.data, 'lines'), { id: randomUUID(), name: 'Accepted pharmacy return', quantity, total: -credit, taxable: -taxable, cgst: -Math.floor(tax / 2), sgst: -(tax - Math.floor(tax / 2)), returnId: ret.id }] },
+        num(bill.data, 'total') - credit === 0 ? 'Paid' : bill.status);
+      }
       break;
     }
     case 'ward.request': {
@@ -299,7 +376,9 @@ export function commerceCommand(name: string, ctx: Context): boolean {
     case 'tariff.propose': {
       const tariff = ctx.get(ctx.t('tariffId'), 'tariff');
       requireThat(ctx.t('effective') > istDate(ctx.now()), 'A price change must start on a future date.');
-      const proposal = ctx.create('tariff', { ...tariff.data, payer: ctx.t('payer'), rate: paise(ctx.n('rate')), effective: ctx.t('effective'), reason: ctx.t('reason'), previousId: tariff.id }, 'Pending approval');
+      const proposal = ctx.create('tariff', { ...tariff.data, payer: ctx.t('payer'), rate: paise(ctx.n('rate')),
+        nightExtra: typeof p.nightExtra === 'number' ? paise(ctx.n('nightExtra')) : num(tariff.data, 'nightExtra'), emergencyExtra: typeof p.emergencyExtra === 'number' ? paise(ctx.n('emergencyExtra')) : num(tariff.data, 'emergencyExtra'),
+        effective: ctx.t('effective'), reason: ctx.t('reason'), previousId: tariff.id }, 'Pending approval');
       ctx.approval('Tariff', proposal.id, {}, ctx.t('reason'), paise(ctx.n('rate'))); break;
     }
     case 'item.create':
@@ -318,8 +397,26 @@ export function commerceCommand(name: string, ctx: Context): boolean {
       requireThat(!ctx.all('bed').some(e => text(e.data, 'name') === ctx.t('name')), 'Bed number already exists.');
       ctx.create('bed', { ...p, dailyRate: paise(ctx.n('dailyRate')) }, 'Free'); break;
     case 'package.create':
+    {
       for (const id of Array.isArray(p.tests) ? p.tests : []) requireThat(typeof id === 'string' && ctx.get(id, 'test').status === 'Active', 'Use active catalog tests.');
-      ctx.create('package', { ...p, price: paise(ctx.n('price')) }, 'Active'); break;
+      const rawRates = p.payerRates && typeof p.payerRates === 'object' && !Array.isArray(p.payerRates) ? p.payerRates : {};
+      const rates = readPayerRates(rawRates, paise(ctx.n('price')));
+      const kind = ctx.t('kind', 'Health check-up');
+      requireThat(kind !== 'Health check-up' || (Array.isArray(p.tests) && p.tests.length > 0), 'A health check-up package needs at least one test.');
+      if (kind === 'Scheme treatment') requireThat(Array.isArray(p.coveredTypes) && p.coveredTypes.length > 0 && p.coveredTypes.every(value => typeof value === 'string' && coveredChargeTypes.includes(value)) && (rates.Ayushman !== undefined || rates.CGHS !== undefined), 'A scheme package needs an Ayushman/CGHS rate and explicit covered charge types.');
+      const pkg = ctx.create('package', { ...p, kind, price: paise(ctx.n('price')), payerRates: rates }, 'Pending approval');
+      ctx.approval('Package', pkg.id, {}, 'New package and rate publication', paise(ctx.n('price'))); break;
+    }
+    case 'package.proposeRates': {
+      const pkg = ctx.get(ctx.t('packageId'), 'package');
+      requireThat(ctx.t('effective') > istDate(ctx.now()), 'New package rates must take effect on a future date.');
+      const raw = p.payerRates; requireThat(raw && typeof raw === 'object' && !Array.isArray(raw) && Object.keys(raw).length, 'Enter at least one future payer rate.');
+      const priorRate = ctx.all('packageRate').filter(rate => text(rate.data, 'packageId') === pkg.id && rate.status === 'Active' && text(rate.data, 'effective') <= istDate(ctx.now())).sort((a, b) => text(b.data, 'effective').localeCompare(text(a.data, 'effective')))[0];
+      const rawPrior = priorRate?.data.payerRates ?? pkg.data.payerRates;
+      const prior = rawPrior && typeof rawPrior === 'object' && !Array.isArray(rawPrior) ? rawPrior : { Self: num(pkg.data, 'price') };
+      const proposal = ctx.create('packageRate', { name: `Rates: ${text(pkg.data, 'name')}`, packageId: pkg.id, payerRates: { ...prior, ...readPayerRates(raw) }, effective: ctx.t('effective'), reason: ctx.t('reason') }, 'Pending approval');
+      ctx.approval('Package rates', proposal.id, {}, ctx.t('reason')); break;
+    }
     case 'approval.decide': {
       const approval = ctx.targetOf('approval');
       requireThat(text(approval.data, 'requestedBy') !== ctx.actor.id, 'You cannot approve your own request. Sign in as a different manager.');
@@ -327,7 +424,10 @@ export function commerceCommand(name: string, ctx: Context): boolean {
       else {
         const target = ctx.get(text(approval.data, 'targetId'));
         if (text(approval.data, 'kind') === 'Discount') ctx.update(target, { discountStatus: 'Declined', approvalReason: ctx.t('reason') });
-        else if (text(approval.data, 'kind') !== 'Discharge credit') ctx.update(target, { approvalReason: ctx.t('reason') }, 'Declined');
+        else if (text(approval.data, 'kind') !== 'Discharge credit') {
+          ctx.update(target, { approvalReason: ctx.t('reason') }, 'Declined');
+          if (text(approval.data, 'kind') === 'Refund' && text(target.data, 'returnId')) ctx.update(ctx.get(text(target.data, 'returnId'), 'return'), { reviewReason: ctx.t('reason') }, 'Credit needs review');
+        }
       }
       ctx.update(approval, { decidedBy: ctx.actor.id, decidedAt: ctx.now(), decisionReason: ctx.t('reason') }, ctx.t('decision') === 'Approve' ? 'Approved' : 'Declined'); break;
     }

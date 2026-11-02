@@ -24,15 +24,18 @@ export type Entity = {
 };
 export type Actor = {
   id: string; name: string; role: Role; department: string; state: string;
+  roles?: Role[];
   login: string; staffId: string; mobile: string; patientIds: string[];
   verifier: boolean; profileConfirmed: boolean; temporary: boolean;
   counter: string; appVersion: number; preferences: Data;
 };
-export type FieldKind = 'text' | 'textarea' | 'number' | 'date' | 'datetime' | 'time' | 'select' | 'boolean' | 'entity' | 'medicines' | 'tests' | 'payments' | 'checklist' | 'file' | 'csv' | 'password';
+export type FieldKind = 'text' | 'textarea' | 'number' | 'date' | 'datetime' | 'time' | 'select' | 'boolean' | 'entity' | 'medicines' | 'tests' | 'payments' | 'checklist' | 'file' | 'csv' | 'password' | 'homeLayout' | 'handovers' | 'payerRates' | 'denominations';
 export type Field = {
   key: string; label: string; kind: FieldKind; required?: boolean;
   options?: string[]; source?: string; states?: string[]; min?: number; max?: number;
   default?: Json; help?: string; clinical?: boolean;
+  hidden?: boolean;
+  crossPatient?: boolean;
 };
 export type CommandDef = {
   name: string; label: string; journeys: string[]; roles: Role[];
@@ -45,6 +48,7 @@ export type Journey = {
 };
 export type CommandRequest = {
   operationId: string; actorId: string; targetId?: string; expectedVersion?: number;
+  actingRole?: Role;
   createdAt: string; payload: Data; deviceId: string;
   contextVersions?: Record<string, number>;
 };
@@ -71,18 +75,31 @@ export const reportKinds: Partial<Record<Role, string[]>> = {
   admin: ['activity', 'referrals', 'orders', 'critical', 'sync', 'accounts'],
   head: ['activity', 'referrals', 'orders', 'critical', 'sync'],
   it: ['sync'], doctor: ['activity'], resident: ['activity'],
-  manager: ['census', 'collections', 'diseases', 'demography', 'pharmacy', 'lab', 'inventory'],
-  cashier: ['collections'], pharmacist: ['pharmacy'], store: ['inventory'], lab: ['lab'], mrd: ['diseases']
+  manager: ['census', 'collections', 'claims', 'day-end', 'diseases', 'demography', 'pharmacy', 'lab', 'inventory'],
+  cashier: ['collections', 'claims', 'day-end'], pharmacist: ['pharmacy', 'day-end'], store: ['inventory'], lab: ['lab'], mrd: ['diseases'], desk: ['day-end']
 };
 export function featureEnabled(snapshot: Snapshot, feature: string) {
   const flag = snapshot.entities.find(e => e.type === 'feature' && e.department === snapshot.actor.department && text(e.data, 'feature') === feature);
   return !flag || text(flag.data, 'state') === 'On' || (text(flag.data, 'state') === 'Pilot' && text(flag.data, 'pilotDoctors').split(',').map(s => s.trim()).includes(snapshot.actor.id));
 }
 export const documentKinds: Partial<Record<Role, string[]>> = {
-  desk: ['OPD slip', 'ID card', 'Admission form', 'Wristband', 'Gate pass'],
-  cashier: ['Receipt', 'Bill', 'Gate pass'], pharmacist: ['Bill', 'Receipt'],
-  nurse: ['Discharge summary', 'ID card', 'OPD slip', 'Admission form', 'Wristband', 'Gate pass'],
-  manager: ['Receipt', 'Bill', 'ID card', 'OPD slip', 'Admission form', 'Wristband', 'Gate pass'],
+  desk: ['OPD slip', 'ID card', 'Admission form', 'Wristband', 'Gate pass', 'Consent form'],
+  cashier: ['Receipt', 'Bill', 'Gate pass', 'Credit note'], pharmacist: ['Bill', 'Receipt', 'Credit note'],
+  nurse: ['Discharge summary', 'ID card', 'OPD slip', 'Admission form', 'Wristband', 'Gate pass', 'Consent form'],
+  manager: ['Receipt', 'Bill', 'ID card', 'OPD slip', 'Admission form', 'Wristband', 'Gate pass', 'Credit note'],
   lab: ['Result', 'Sample label', 'Dispatch manifest'],
-  patient: ['Prescription', 'OPD slip', 'ID card', 'Receipt', 'Bill', 'Result', 'Discharge summary']
+  patient: ['Prescription', 'OPD slip', 'ID card', 'Receipt', 'Bill', 'Result', 'Discharge summary', 'Credit note']
 };
+export function actorRoles(actor: Pick<Actor, 'role' | 'roles'>): Role[] {
+  if (!staffRoles.includes(actor.role)) return [actor.role];
+  return [...new Set([actor.role, ...(actor.roles ?? [])].filter(role => staffRoles.includes(role)))];
+}
+export function hasRole(actor: Pick<Actor, 'role' | 'roles'>, allowed: readonly Role[]) {
+  return actorRoles(actor).some(role => allowed.includes(role));
+}
+export function roleLabel(actor: Pick<Actor, 'role' | 'roles'>) { return actorRoles(actor).map(role => roleNames[role]).join(' + '); }
+export function actorReportKinds(actor: Actor) { return [...new Set(actorRoles(actor).flatMap(role => reportKinds[role] ?? []))]; }
+export function actorDocumentKinds(actor: Actor): string[] | undefined {
+  if (doctorRoles.includes(actor.role)) return undefined;
+  return [...new Set(actorRoles(actor).flatMap(role => documentKinds[role] ?? []))];
+}

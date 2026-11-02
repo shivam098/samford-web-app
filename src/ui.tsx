@@ -1,5 +1,6 @@
 import React from 'react';
 import { label, type Entity, type Json } from '../shared/model.js';
+import { useI18n } from './i18n.js';
 export function Icon({ name, size = 20 }: { name: string; size?: number }) {
   const paths: Record<string, React.ReactNode> = {
     home: <><path d="m3 10 9-7 9 7v10H3z"/><path d="M9 20v-7h6v7"/></>,
@@ -26,19 +27,25 @@ export function Icon({ name, size = 20 }: { name: string; size?: number }) {
 }
 export function Logo() { return <a className="brand" href="#home"><span className="brand-mark"><Icon name="plus" size={27}/></span><span>samford<span className="brand-sub">WORKFLOW LAB</span></span></a>; }
 export function Pill({ children, tone = '' }: { children: React.ReactNode; tone?: string }) {
+  const { t } = useI18n();
   const value = typeof children === 'string' ? children : '';
   const style = tone || (/Critical|Failed|Rejected|Conflict|Expired|Blocked|Declined|Cancelled/.test(value) ? 'danger' : /Pending|Requested|Held|Waiting|Draft|Queued|Part|Offered/.test(value) ? 'warning' : /Approved|Done|Completed|Active|Paid|Delivered|Released|Accepted|Available|Received|Free/.test(value) ? 'good' : 'neutral');
-  return <span className={`pill ${style}`}>{children}</span>;
+  return <span className={`pill ${style}`}>{typeof children === 'string' ? t(children) : children}</span>;
 }
 export function Empty({ title = 'Nothing waiting', children }: { title?: string; children?: React.ReactNode }) {
-  return <div className="empty"><span className="empty-icon"><Icon name="check" size={26}/></span><h3>{title}</h3><p>{children || 'New work will appear here when the responsible desk sends it.'}</p></div>;
+  const { t, language } = useI18n();
+  return <div className="empty"><span className="empty-icon"><Icon name="check" size={26}/></span><h3>{t(title)}</h3><p>{children ? typeof children === 'string' ? t(children) : children : language === 'Hindi' ? 'जिम्मेदार डेस्क से नया कार्य आने पर वह यहाँ दिखेगा।' : 'New work will appear here when the responsible desk sends it.'}</p></div>;
 }
-export function ErrorBox({ message }: { message?: string }) { return message ? <div className="error-box" role="alert"><Icon name="shield"/><span>{message}</span></div> : null; }
+export function ErrorBox({ message }: { message?: string }) {
+  const { t, language } = useI18n();
+  return message ? <div className="error-box" role="alert"><Icon name="shield"/><span>{language === 'Hindi' && <strong>कार्रवाई पूरी नहीं हुई। विवरण जाँचें: </strong>}{t(message)}</span></div> : null;
+}
 export function Modal({ title, children, onClose, wide = false }: { title: string; children: React.ReactNode; onClose: () => void; wide?: boolean }) {
+  const { t } = useI18n();
   const ref = React.useRef<HTMLDialogElement>(null);
   React.useEffect(() => { ref.current?.showModal(); const dialog = ref.current; return () => { dialog?.close(); }; }, []);
   return <dialog ref={ref} className={wide ? 'modal wide' : 'modal'} onCancel={event => { event.preventDefault(); onClose(); }}>
-    <header><h2>{title}</h2><button className="icon-btn" onClick={onClose} aria-label="Close dialog"><Icon name="close"/></button></header><div className="modal-body">{children}</div>
+    <header><h2>{t(title)}</h2><button className="icon-btn" onClick={onClose} aria-label={t('Close dialog')}><Icon name="close"/></button></header><div className="modal-body">{children}</div>
   </dialog>;
 }
 export function displayTime(value: string) {

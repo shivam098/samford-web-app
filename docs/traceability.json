@@ -1,17 +1,23 @@
 {
-  "generatedAt": "2026-11-02T00:53:20.283Z",
-  "apiRunAt": "2026-11-02T00:52:40.024Z",
-  "browserRunAt": "2026-11-02T00:53:19.112Z",
-  "scope": "87 implemented journey workspaces and verified primary API paths. Browser behavior is evidence only for the interactions explicitly listed; all-route rendering is reported separately.",
+  "version": "0.2.0",
+  "generatedAt": "2026-11-02T03:13:41.713Z",
+  "apiRunAt": "2026-11-02T03:07:21.178Z",
+  "browserRunAt": [
+    "2026-11-02T03:08:27.926Z",
+    "2026-11-02T03:09:08.250Z",
+    "2026-11-02T03:10:55.710Z"
+  ],
+  "scope": "All 87 named journeys have primary API and substantive browser evidence. Each row describes exactly what was exercised; rendering is a separate smoke-test dimension, not proof of every optional state.",
   "limitations": [
     "Public synthetic personas, OTP, captcha and signing PIN are demonstrations, not production authentication or legal clinical signatures.",
     "No live ETHER, ABDM, messaging, payment, insurance, video, audio or laboratory-provider integrations.",
     "Native device encryption/biometric unlock/screenshot blocking/remote OS wipe are not implemented by a web page. Browser data uses persona-isolated encrypted IndexedDB.",
-    "Hindi doctor navigation is implemented; comprehensive Hindi field/content/PDF localization is not complete. Generated PDFs use English labels.",
+    "Doctor/patient action labels, declared form fields/options and PDF labels support Hindi. Authored clinical text is preserved, not translated. Technical record keys, developer diagnostics and some explanatory copy remain English; no complete human linguistic review or PDF/UA certification is claimed.",
     "Pen drawing and reviewed image attachment work; speech/handwriting text recognition use explicitly labelled transcript simulations.",
-    "One active role per named demo persona. Production multi-role identities, network restrictions, recovery-code enrollment, clinical interaction knowledge and hospital-specific authorization policy remain unvalidated.",
+    "Multiple staff roles share one identity and independent-approver checks. Clinical/admin/staff role blending is prohibited. Network restrictions, recovery-code enrollment, clinical interaction knowledge and hospital production authorization policy remain unvalidated.",
     "Physical scanners, webcam capture, printers and signature capture are exercised through file/PDF/reference simulations, not hardware integrations.",
-    "All primary journey flows are tested, not all 349 illustrated PRD screen states or every optional administrative/financial branch. No scale, accessibility certification or production-readiness claim."
+    "The accounting ledger, payroll, HR, live schemes and real data migration are explicitly excluded by the staff PRD. Day-end and claim exports do not constitute a ledger.",
+    "All primary journey flows and the named completeness variants are tested, not all 349 illustrated PRD screen states or every optional branch. No scale, accessibility certification or production-readiness claim."
   ],
   "journeys": [
     {
@@ -54,7 +60,9 @@
       "apiEvidence": [
         "Access queue count rises; head cannot approve; temporary password shown only once; wrong MFA rejected; patient scope blocked until password change and profile confirmation; old temp is unusable and absent from persisted audit/receipts."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Guest requests access in the browser; administrator signs in with password and simulated MFA, opens the changed Home queue, approves and receives a one-time credential. New doctor tracks Invited, signs in, changes password and confirms profile before patient APIs unlock."
+      ],
       "browserRendered": true
     },
     {
@@ -73,7 +81,10 @@
       "apis": [
         "/api/profile/{doctorId}/qr",
         "/profile/{doctorId}",
-        "/api/commands/preferences.save"
+        "/api/reports/activity",
+        "/api/commands/preferences.save",
+        "/api/commands/preferences.resetHome",
+        "/api/commands/preferences.language"
       ],
       "workflowCommands": [
         {
@@ -81,6 +92,25 @@
           "roles": [
             "doctor",
             "resident"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "preferences.resetHome",
+          "roles": [
+            "doctor",
+            "resident"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "preferences.language",
+          "roles": [
+            "doctor",
+            "resident",
+            "patient"
           ],
           "allowedFrom": [],
           "target": null
@@ -93,7 +123,9 @@
         "Preferences persist across sign-out; mandatory results card cannot be hidden; QR points only to a public doctor profile."
       ],
       "browserBehavior": [
-        "Pointer-drawn pen image is reviewed and saved as a private patient document linked to the immutable note; 200% root text size and Hindi doctor navigation apply from persisted preferences."
+        "Pointer-drawn pen image is reviewed and saved as a private patient document linked to the immutable note; 200% root text size and Hindi doctor navigation apply from persisted preferences.",
+        "Native browser drag/drop changes persisted Home order; hide and row limit survive reload; department locks and reset work without clearing other preferences. Doctor month filter shows one own completed visit now and zero in a prior month, labelled app activity rather than attendance.",
+        "Doctor switches UI/print language, types mixed original Hindi/English note content, submits through Hindi controls and obtains an actual PDF whose parsed tagged logical text preserves it. Patient uses Hindi-labelled registration/slot fields to create a real shared booking; mobile Hindi page has no horizontal overflow."
       ],
       "browserRendered": true
     },
@@ -108,7 +140,8 @@
       "collection": [
         "presence",
         "referral",
-        "result"
+        "result",
+        "handover"
       ],
       "description": "Record your presence and see first and latest sign-in in IST. Sign-in is app activity, not attendance.",
       "ui": "/#journey/DJ03",
@@ -117,6 +150,7 @@
         "/api/auth/lock",
         "/api/auth/unlock",
         "/api/commands/presence.set",
+        "/api/commands/handover.claim",
         "/api/commands/announcement.dismiss"
       ],
       "workflowCommands": [
@@ -128,6 +162,16 @@
           ],
           "allowedFrom": [],
           "target": null
+        },
+        {
+          "name": "handover.claim",
+          "roles": [
+            "doctor"
+          ],
+          "allowedFrom": [
+            "Awaiting claim"
+          ],
+          "target": "handover"
         },
         {
           "name": "announcement.dismiss",
@@ -148,7 +192,8 @@
         "Scoped search refuses another doctor’s visit; presence reaches the desk; call updates a token-only public board; identity confirmation opens consultation."
       ],
       "browserBehavior": [
-        "390px/320px doctor layout has no document overflow, preserves Home/Patients/Calendar/More bottom tabs; locking removes patient content and PIN unlock restores workspace."
+        "390px/320px doctor layout has no document overflow, preserves Home/Patients/Calendar/More bottom tabs; locking removes patient content and PIN unlock restores workspace.",
+        "Admin reviews counts/UHIDs without clinical note text, chooses a separate consultant per group and Department queue for admissions, then deactivates. A newly invited consultant signs in with password/OTP through the browser and claims the queued responsibility; clinical authors remain unchanged."
       ],
       "browserRendered": true
     },
@@ -188,7 +233,9 @@
       "apiEvidence": [
         "Availability request counts affected booking, remains requested before desk decision, approval blocks slots and marks needs-move; moving keeps history and clears the affected item."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Doctor submits leave with an actual affected booking, adds authored history and examined signs, and records an unbooked follow-up. Persisted state distinguishes Requested leave and Recommended follow-up from approvals/bookings."
+      ],
       "browserRendered": true
     },
     {
@@ -369,7 +416,9 @@
       "apiEvidence": [
         "History authors persist; allergy correction preserves old entry; extreme BP requires confirmation; two note saves retain both versions and missing-code request."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Doctor submits leave with an actual affected booking, adds authored history and examined signs, and records an unbooked follow-up. Persisted state distinguishes Requested leave and Recommended follow-up from approvals/bookings."
+      ],
       "browserRendered": true
     },
     {
@@ -406,7 +455,9 @@
       "apiEvidence": [
         "History authors persist; allergy correction preserves old entry; extreme BP requires confirmation; two note saves retain both versions and missing-code request."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Doctor submits leave with an actual affected booking, adds authored history and examined signs, and records an unbooked follow-up. Persisted state distinguishes Requested leave and Recommended follow-up from approvals/bookings."
+      ],
       "browserRendered": true
     },
     {
@@ -458,7 +509,8 @@
       "browserBehavior": [
         "Browser users scoped-search/open patient, confirm identity, type/review/save note, review medicine and send Rx; independent pharmacy browser acknowledges and dispenses; doctor sees fulfillment.",
         "Encrypted form draft and queued command survive reload while offline simulation is active; reconnect applies once; lost reply retries to one effect; conflict shows both versions and requires a newly reviewed action.",
-        "Pointer-drawn pen image is reviewed and saved as a private patient document linked to the immutable note; 200% root text size and Hindi doctor navigation apply from persisted preferences."
+        "Pointer-drawn pen image is reviewed and saved as a private patient document linked to the immutable note; 200% root text size and Hindi doctor navigation apply from persisted preferences.",
+        "Doctor switches UI/print language, types mixed original Hindi/English note content, submits through Hindi controls and obtains an actual PDF whose parsed tagged logical text preserves it. Patient uses Hindi-labelled registration/slot fields to create a real shared booking; mobile Hindi page has no horizontal overflow."
       ],
       "browserRendered": true
     },
@@ -656,7 +708,9 @@
       "apiEvidence": [
         "Follow-up is Requested before desk booking; accepting a received urgent referral creates an urgent receiving-doctor visit, with sender-visible reply and no public identities."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Doctor submits leave with an actual affected booking, adds authored history and examined signs, and records an unbooked follow-up. Persisted state distinguishes Requested leave and Recommended follow-up from approvals/bookings."
+      ],
       "browserRendered": true
     },
     {
@@ -692,7 +746,9 @@
       "apiEvidence": [
         "Follow-up is Requested before desk booking; accepting a received urgent referral creates an urgent receiving-doctor visit, with sender-visible reply and no public identities."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Sending doctor creates urgent referral in browser; receiving doctor explicitly accepts and gets an urgent owned visit. Pharmacist question is answered through the doctor form and creates prescription version 2 with the reviewed replacement."
+      ],
       "browserRendered": true
     },
     {
@@ -748,7 +804,9 @@
       "apiEvidence": [
         "Admission request is separate from clean-bed allotment; resident ward order needs countersignature; nurse charts dose once against order; ward pharmacy issue bills IPD; danger SpO2 creates consultant alert."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "OT coordinator chooses an emergency and a different patient’s conflicting planned case, enters both times and reason, and submits one atomic move. Surgeon sees the durable change notification and accepts the revised slot; pre-op checks are not bypassed."
+      ],
       "browserRendered": true
     },
     {
@@ -838,7 +896,9 @@
       "apiEvidence": [
         "Hold/resume preserves notes; generated PDF has credentials and follow-up; share uses registered destination; Done records once and calls the next token."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Doctor holds and resumes a visit through UI without losing its note, confirms arrival, finishes after review and sees the next token Called. Done attribution is written once."
+      ],
       "browserRendered": true
     },
     {
@@ -919,7 +979,9 @@
       "apiEvidence": [
         "Hold/resume preserves notes; generated PDF has credentials and follow-up; share uses registered destination; Done records once and calls the next token."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Doctor switches UI/print language, types mixed original Hindi/English note content, submits through Hindi controls and obtains an actual PDF whose parsed tagged logical text preserves it. Patient uses Hindi-labelled registration/slot fields to create a real shared booking; mobile Hindi page has no horizontal overflow."
+      ],
       "browserRendered": true
     },
     {
@@ -959,7 +1021,9 @@
       "apiEvidence": [
         "Hold/resume preserves notes; generated PDF has credentials and follow-up; share uses registered destination; Done records once and calls the next token."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Doctor holds and resumes a visit through UI without losing its note, confirms arrival, finishes after review and sees the next token Called. Done attribution is written once."
+      ],
       "browserRendered": true
     },
     {
@@ -1054,7 +1118,9 @@
       "apiEvidence": [
         "Admission request is separate from clean-bed allotment; resident ward order needs countersignature; nurse charts dose once against order; ward pharmacy issue bills IPD; danger SpO2 creates consultant alert."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Consultant reads the nurse’s persisted handover, writes a round, then reviews/approves a resident-authored discharge using the demo PIN. Original author remains resident; both nursing and billing handoffs become Requested."
+      ],
       "browserRendered": true
     },
     {
@@ -1102,7 +1168,9 @@
       "apiEvidence": [
         "Resident drafts but cannot approve discharge; wrong PIN fails; consultant approval creates simultaneous nursing/billing handoffs; approved scheme share yields zero patient due; clearance releases bed to Cleaning; insurer query resubmission and deduction require independent approval."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Consultant reads the nurse’s persisted handover, writes a round, then reviews/approves a resident-authored discharge using the demo PIN. Original author remains resident; both nursing and billing handoffs become Requested."
+      ],
       "browserRendered": true
     },
     {
@@ -1140,7 +1208,9 @@
       "apiEvidence": [
         "Urgent orders generate tariff bills; unpaid collection fails; payment failure leaves unpaid, success clears lab; wrong barcode and own verification fail; critical release appears in doctor/patient scopes; amendments preserve original review and require another review."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Lab verifier checks/releases a separately authored critical result through UI, consultant records action through UI, and an amendment requires a second independent verification/release and another doctor review. Original review remains."
+      ],
       "browserRendered": true
     },
     {
@@ -1189,7 +1259,9 @@
       "apiEvidence": [
         "Follow-up is Requested before desk booking; accepting a received urgent referral creates an urgent receiving-doctor visit, with sender-visible reply and no public identities."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Sending doctor creates urgent referral in browser; receiving doctor explicitly accepts and gets an urgent owned visit. Pharmacist question is answered through the doctor form and creates prescription version 2 with the reviewed replacement."
+      ],
       "browserRendered": true
     },
     {
@@ -1228,7 +1300,9 @@
       "apiEvidence": [
         "Allergy blocks unreviewed approval; pharmacist receives exact Rx; expired/mismatched batches fail; prescribing doctor approves substitution v2; dispense taxes reconcile; 4/10 return credits INR22.40 and restores batch."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Sending doctor creates urgent referral in browser; receiving doctor explicitly accepts and gets an urgent owned visit. Pharmacist question is answered through the doctor form and creates prescription version 2 with the reviewed replacement."
+      ],
       "browserRendered": true
     },
     {
@@ -1274,7 +1348,9 @@
       "apiEvidence": [
         "Simulated precheck/wait/join/connect/drop/reconnect/end transitions execute; drop preserves accepted note; duration is recorded and no media is requested."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Browser drives precheck/join/connect/drop/reconnect/end with durable call stages, then requests consent-bound ABHA OTP, verifies the returned synthetic code and withdraws consent without deleting its record. No actual media or ABDM traffic."
+      ],
       "browserRendered": true
     },
     {
@@ -1409,7 +1485,9 @@
       "apiEvidence": [
         "ABHA linking refuses absent consent and wrong OTP; valid simulated OTP updates shared patient status; withdrawal retains consent history."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Browser drives precheck/join/connect/drop/reconnect/end with durable call stages, then requests consent-bound ABHA OTP, verifies the returned synthetic code and withdraws consent without deleting its record. No actual media or ABDM traffic."
+      ],
       "browserRendered": true
     },
     {
@@ -1468,7 +1546,9 @@
       "apiEvidence": [
         "Doctor help reaches support, reply returns, article publication reaches doctor and read/helpful state persists."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Doctor submits a privacy-safe help request. IT replies/closes and publishes a guide. Doctor reads the actual reply, marks the guide helpful and follows its Show me link."
+      ],
       "browserRendered": true
     },
     {
@@ -1500,7 +1580,9 @@
       "apiEvidence": [
         "Access queue count rises; head cannot approve; temporary password shown only once; wrong MFA rejected; patient scope blocked until password change and profile confirmation; old temp is unusable and absent from persisted audit/receipts."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Guest requests access in the browser; administrator signs in with password and simulated MFA, opens the changed Home queue, approves and receives a one-time credential. New doctor tracks Invited, signs in, changes password and confirms profile before patient APIs unlock."
+      ],
       "browserRendered": true
     },
     {
@@ -1530,7 +1612,9 @@
       "apiEvidence": [
         "Access queue count rises; head cannot approve; temporary password shown only once; wrong MFA rejected; patient scope blocked until password change and profile confirmation; old temp is unusable and absent from persisted audit/receipts."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Guest requests access in the browser; administrator signs in with password and simulated MFA, opens the changed Home queue, approves and receives a one-time credential. New doctor tracks Invited, signs in, changes password and confirms profile before patient APIs unlock."
+      ],
       "browserRendered": true
     },
     {
@@ -1581,7 +1665,9 @@
       "apiEvidence": [
         "Access queue count rises; head cannot approve; temporary password shown only once; wrong MFA rejected; patient scope blocked until password change and profile confirmation; old temp is unusable and absent from persisted audit/receipts."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Guest requests access in the browser; administrator signs in with password and simulated MFA, opens the changed Home queue, approves and receives a one-time credential. New doctor tracks Invited, signs in, changes password and confirms profile before patient APIs unlock."
+      ],
       "browserRendered": true
     },
     {
@@ -1617,7 +1703,9 @@
       "apiEvidence": [
         "Access queue count rises; head cannot approve; temporary password shown only once; wrong MFA rejected; patient scope blocked until password change and profile confirmation; old temp is unusable and absent from persisted audit/receipts."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Guest requests access in the browser; administrator signs in with password and simulated MFA, opens the changed Home queue, approves and receives a one-time credential. New doctor tracks Invited, signs in, changes password and confirms profile before patient APIs unlock."
+      ],
       "browserRendered": true
     },
     {
@@ -1665,7 +1753,9 @@
       "apiEvidence": [
         "CSV preview creates no account; duplicate staff ID is identified; commit creates only Ready rows; reimport is duplicate-safe."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Admin pastes CSV and creates only ready rows through separate preview/commit buttons. IT issues a temporary password only after callback confirmation, then unlocks a genuinely failed-password-locked account through the UI."
+      ],
       "browserRendered": true
     },
     {
@@ -1703,7 +1793,9 @@
       "apiEvidence": [
         "Password reset requires identity check and invalidates old password/sessions; five failed passwords lock; verified unlock restores the prior invited state."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Admin pastes CSV and creates only ready rows through separate preview/commit buttons. IT issues a temporary password only after callback confirmation, then unlocks a genuinely failed-password-locked account through the UI."
+      ],
       "browserRendered": true
     },
     {
@@ -1743,7 +1835,9 @@
       "apiEvidence": [
         "Password reset requires identity check and invalidates old password/sessions; five failed passwords lock; verified unlock restores the prior invited state."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Admin pastes CSV and creates only ready rows through separate preview/commit buttons. IT issues a temporary password only after callback confirmation, then unlocks a genuinely failed-password-locked account through the UI."
+      ],
       "browserRendered": true
     },
     {
@@ -1762,6 +1856,7 @@
       "description": "Preview profile changes and transfer open work before removing a department. Previous authors remain unchanged.",
       "ui": "/#journey/AJ08",
       "apis": [
+        "/api/accounts/{id}/handover",
         "/api/commands/account.edit"
       ],
       "workflowCommands": [
@@ -1781,7 +1876,9 @@
       "apiEvidence": [
         "Open clinical work blocks department transfer without receiver; handover preserves authors; suspension blocks login, reactivation restores; deactivation requires exact name and recovery plan; only super admin restores."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Browser saves a same-department profile correction, suspends/reactivates the account and signs out a real active browser device. The revoked doctor browser cannot continue reading the API."
+      ],
       "browserRendered": true
     },
     {
@@ -1798,6 +1895,7 @@
       "description": "Suspend with a reason and optional end date. Preserve local drafts; scheduled reactivation restores access.",
       "ui": "/#journey/AJ09",
       "apis": [
+        "/api/accounts/{id}/handover",
         "/api/commands/account.suspend",
         "/api/commands/account.reactivate"
       ],
@@ -1832,7 +1930,9 @@
       "apiEvidence": [
         "Open clinical work blocks department transfer without receiver; handover preserves authors; suspension blocks login, reactivation restores; deactivation requires exact name and recovery plan; only super admin restores."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Browser saves a same-department profile correction, suspends/reactivates the account and signs out a real active browser device. The revoked doctor browser cannot continue reading the API."
+      ],
       "browserRendered": true
     },
     {
@@ -1849,6 +1949,7 @@
       "description": "Choose a receiver, review open-work counts and unsent recovery, type the name to confirm and end sessions. Restore requires a super admin.",
       "ui": "/#journey/AJ10",
       "apis": [
+        "/api/accounts/{id}/handover",
         "/api/commands/account.reactivate",
         "/api/commands/account.deactivate",
         "/api/commands/account.scheduleExit"
@@ -1893,7 +1994,9 @@
       "apiEvidence": [
         "Open clinical work blocks department transfer without receiver; handover preserves authors; suspension blocks login, reactivation restores; deactivation requires exact name and recovery plan; only super admin restores."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Admin reviews counts/UHIDs without clinical note text, chooses a separate consultant per group and Department queue for admissions, then deactivates. A newly invited consultant signs in with password/OTP through the browser and claims the queued responsibility; clinical authors remain unchanged."
+      ],
       "browserRendered": true
     },
     {
@@ -1953,7 +2056,9 @@
       "apiEvidence": [
         "Hospital admin cannot wipe; IT remote sign-out blocks next request; wipe remains pending until device acknowledgement records unsent losses."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Browser saves a same-department profile correction, suspends/reactivates the account and signs out a real active browser device. The revoked doctor browser cannot continue reading the API."
+      ],
       "browserRendered": true
     },
     {
@@ -2023,7 +2128,9 @@
       "apiEvidence": [
         "New department reaches doctor catalog; sessions persist; a holiday blocks booking."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Admin publishes a department, actual future OPD session, clinician-reviewed template and generic locked notification wording through forms; the doctor receives the template and desk receives the new slots. Super admin persists bounded security policy values."
+      ],
       "browserRendered": true
     },
     {
@@ -2044,6 +2151,7 @@
       "apis": [
         "/api/commands/roster.save",
         "/api/commands/roster.import",
+        "/api/commands/roster.repeat",
         "/api/commands/job.presence"
       ],
       "workflowCommands": [
@@ -2066,6 +2174,15 @@
           "target": null
         },
         {
+          "name": "roster.repeat",
+          "roles": [
+            "superadmin",
+            "admin"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
           "name": "job.presence",
           "roles": [
             "superadmin"
@@ -2080,7 +2197,9 @@
       "apiEvidence": [
         "At simulated 22:00 IST regular doctor goes Offline, rostered night doctor stays Here; repeated reset has no duplicate run or effect; presence reset is separate from authentication."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Administrator selects month/weekdays/shift in the real repeat-pattern form, reviews four preview dates, publishes, and sees exactly four named cells in the monthly clinical-duty calendar."
+      ],
       "browserRendered": true
     },
     {
@@ -2139,7 +2258,9 @@
       "apiEvidence": [
         "Retired items block set publishing; republishing increments set version; templates and letterhead are persisted for the doctor/PDF surface."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Admin publishes a department, actual future OPD session, clinician-reviewed template and generic locked notification wording through forms; the doctor receives the template and desk receives the new slots. Super admin persists bounded security policy values."
+      ],
       "browserRendered": true
     },
     {
@@ -2187,7 +2308,9 @@
       "apiEvidence": [
         "Duty routing uses the rostered consultant; identifying lock-screen placeholders are rejected, generic wording is accepted."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Admin publishes a department, actual future OPD session, clinician-reviewed template and generic locked notification wording through forms; the doctor receives the template and desk receives the new slots. Super admin persists bounded security policy values."
+      ],
       "browserRendered": true
     },
     {
@@ -2200,17 +2323,28 @@
       ],
       "collection": [
         "feature",
-        "announcement"
+        "announcement",
+        "homeDefault"
       ],
       "description": "Enable features by department or pilot group and publish audience-scoped, time-limited announcements without deleting drafts.",
       "ui": "/#journey/AJ16",
       "apis": [
         "/api/commands/feature.save",
+        "/api/commands/home.defaults",
         "/api/commands/announcement.publish"
       ],
       "workflowCommands": [
         {
           "name": "feature.save",
+          "roles": [
+            "superadmin",
+            "admin"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
+        {
+          "name": "home.defaults",
           "roles": [
             "superadmin",
             "admin"
@@ -2235,7 +2369,9 @@
         "Department video switch blocks API start without deleting work; audience-scoped announcement reaches doctors but not desk.",
         "High-value stock count waits for approval; future MRP waits for separate approver and scheduler effective date; autonomous reminders record a run and respect patient opt-out; announcement dismissal is persona-scoped."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Native browser drag/drop changes persisted Home order; hide and row limit survive reload; department locks and reset work without clearing other preferences. Doctor month filter shows one own completed visit now and zero in a prior month, labelled app activity rather than attendance."
+      ],
       "browserRendered": true
     },
     {
@@ -2288,7 +2424,9 @@
       "apiEvidence": [
         "Doctor help reaches support, reply returns, article publication reaches doctor and read/helpful state persists."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Doctor submits a privacy-safe help request. IT replies/closes and publishes a guide. Doctor reads the actual reply, marks the guide helpful and follows its Show me link."
+      ],
       "browserRendered": true
     },
     {
@@ -2315,7 +2453,9 @@
       "apiEvidence": [
         "Activity Done count matches daily calendar and CSV; CSV includes not-attendance note; referral report matches state; IT reports restricted to device/sync health."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Admin filters real completed-visit activity by department, expands daily counts and downloads matching CSV; operations report shows an actual pending referral. Auditor filters/exports a clinical event without its clinical payload. Outage card exposes a provider-specific next action."
+      ],
       "browserRendered": true
     },
     {
@@ -2343,7 +2483,9 @@
       "apiEvidence": [
         "Activity Done count matches daily calendar and CSV; CSV includes not-attendance note; referral report matches state; IT reports restricted to device/sync health."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Admin filters real completed-visit activity by department, expands daily counts and downloads matching CSV; operations report shows an actual pending referral. Auditor filters/exports a clinical event without its clinical payload. Outage card exposes a provider-specific next action."
+      ],
       "browserRendered": true
     },
     {
@@ -2370,7 +2512,9 @@
       "apiEvidence": [
         "Auditor can export append-only redacted audit; edit attempt is denied and logged; admin projection contains no clinical record types."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Admin filters real completed-visit activity by department, expands daily counts and downloads matching CSV; operations report shows an actual pending referral. Auditor filters/exports a clinical event without its clinical payload. Outage card exposes a provider-specific next action."
+      ],
       "browserRendered": true
     },
     {
@@ -2404,7 +2548,9 @@
       "apiEvidence": [
         "Security floors reject a six-character password policy; staff identity uses AJ22; super-admin elevation remains pending until a different super admin approves; own-role change is refused."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Admin publishes a department, actual future OPD session, clinician-reviewed template and generic locked notification wording through forms; the doctor receives the template and desk receives the new slots. Super admin persists bounded security policy values."
+      ],
       "browserRendered": true
     },
     {
@@ -2469,7 +2615,9 @@
       "apiEvidence": [
         "Security floors reject a six-character password policy; staff identity uses AJ22; super-admin elevation remains pending until a different super admin approves; own-role change is refused."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Browser admin changes assigned staff roles; old session is rejected and re-sign-in shows combined registration/billing/approval menus. Same identity can request under its manager role but cannot approve its own request; a different manager completes it."
+      ],
       "browserRendered": true
     },
     {
@@ -2498,7 +2646,9 @@
       "apiEvidence": [
         "Shared simulated provider outage is visible on system status with the ETHER support next action."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Admin filters real completed-visit activity by department, expands daily counts and downloads matching CSV; operations report shows an actual pending referral. Auditor filters/exports a clinical event without its clinical payload. Outage card exposes a provider-specific next action."
+      ],
       "browserRendered": true
     },
     {
@@ -2553,7 +2703,9 @@
       "apiEvidence": [
         "Counter selection persists; duplicate registration and full Aadhaar are blocked; MLC masked record books/checks in exactly once; doctor receives the visit and reprinted slip is Duplicate."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Browser admin changes assigned staff roles; old session is rejected and re-sign-in shows combined registration/billing/approval menus. Same identity can request under its manager role but cannot approve its own request; a different manager completes it."
+      ],
       "browserRendered": true
     },
     {
@@ -2811,7 +2963,7 @@
         "board",
         "presence"
       ],
-      "description": "Configure token-only boards, room views and doctors. The gated board endpoint never sends patient identifiers.",
+      "description": "Configure token-only boards, room views and doctors. The public synthetic board endpoint never sends patient identifiers.",
       "ui": "/#journey/SJ05",
       "apis": [
         "/api/board/{id}",
@@ -2844,7 +2996,9 @@
       "apiEvidence": [
         "Scoped search refuses another doctor’s visit; presence reaches the desk; call updates a token-only public board; identity confirmation opens consultation."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Desk configures a board, opens its actual token-only surface and checks it contains no patient names/UHIDs; uploads a real synthetic PDF via the file picker, opens it, and marks it filed in error with retained history."
+      ],
       "browserRendered": true
     },
     {
@@ -2906,7 +3060,9 @@
       "apiEvidence": [
         "Authenticated sample upload becomes doctor-visible; Aadhaar filename is rejected; filed-by-mistake retains history and hides the file from doctor scope."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Desk configures a board, opens its actual token-only surface and checks it contains no patient names/UHIDs; uploads a real synthetic PDF via the file picker, opens it, and marks it filed in error with retained history."
+      ],
       "browserRendered": true
     },
     {
@@ -2962,7 +3118,8 @@
           "name": "bill.discount",
           "roles": [
             "cashier",
-            "manager"
+            "manager",
+            "pharmacist"
           ],
           "allowedFrom": [
             "Unpaid"
@@ -3023,7 +3180,12 @@
       "description": "Check simulated eligibility, send pre-authorisation, answer insurer queries and settle with an approved deduction owner.",
       "ui": "/#journey/SJ08",
       "apis": [
+        "/api/packages/{id}/quote",
+        "/api/admissions/{id}/estimate",
+        "/api/reports/claims",
         "/api/commands/claim.create",
+        "/api/commands/claim.retryEligibility",
+        "/api/commands/claim.reconcilePackage",
         "/api/commands/claim.send",
         "/api/commands/claim.question",
         "/api/commands/claim.response",
@@ -3039,6 +3201,32 @@
           ],
           "allowedFrom": [],
           "target": null
+        },
+        {
+          "name": "claim.retryEligibility",
+          "roles": [
+            "cashier",
+            "manager"
+          ],
+          "allowedFrom": [
+            "Eligibility failed"
+          ],
+          "target": "claim"
+        },
+        {
+          "name": "claim.reconcilePackage",
+          "roles": [
+            "cashier",
+            "manager"
+          ],
+          "allowedFrom": [
+            "Draft",
+            "Sent",
+            "Query raised",
+            "Approved",
+            "Rejected"
+          ],
+          "target": "claim"
         },
         {
           "name": "claim.send",
@@ -3104,7 +3292,9 @@
       "apiEvidence": [
         "Resident drafts but cannot approve discharge; wrong PIN fails; consultant approval creates simultaneous nursing/billing handoffs; approved scheme share yields zero patient due; clearance releases bed to Cleaning; insurer query resubmission and deduction require independent approval."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Cashier selects a master scheme in UI and cannot edit its price, submits/receives pre-authorisation, sees INR4000 remaining patient share, counts actual note denominations, signs off/sends the counter report and downloads a matching accounts CSV. No accounting ledger is created."
+      ],
       "browserRendered": true
     },
     {
@@ -3125,10 +3315,30 @@
       "description": "Request line-level refunds with approval; reconcile denominations and close your counter. No more collections after closing.",
       "ui": "/#journey/SJ09",
       "apis": [
+        "/api/counters/summary",
+        "/api/reports/day-end",
+        "/api/commands/document.generate",
         "/api/commands/refund.request",
-        "/api/commands/counter.close"
+        "/api/commands/counter.close",
+        "/api/commands/counter.sendAccounts"
       ],
       "workflowCommands": [
+        {
+          "name": "document.generate",
+          "roles": [
+            "doctor",
+            "resident",
+            "desk",
+            "cashier",
+            "patient",
+            "nurse",
+            "manager",
+            "lab",
+            "pharmacist"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
         {
           "name": "refund.request",
           "roles": [
@@ -3149,6 +3359,19 @@
           ],
           "allowedFrom": [],
           "target": null
+        },
+        {
+          "name": "counter.sendAccounts",
+          "roles": [
+            "cashier",
+            "desk",
+            "pharmacist",
+            "manager"
+          ],
+          "allowedFrom": [
+            "Closed"
+          ],
+          "target": "counterClose"
         }
       ],
       "evidenceFile": "docs/traceability.json",
@@ -3157,7 +3380,9 @@
       "apiEvidence": [
         "Discount waits for independent approval; split payment yields one receipt; refund capped at net paid line and retains original modes; unexplained cash difference rejected, approved closure blocks collection; net report equals receipts less refund."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Cashier selects a master scheme in UI and cannot edit its price, submits/receives pre-authorisation, sees INR4000 remaining patient share, counts actual note denominations, signs off/sends the counter report and downloads a matching accounts CSV. No accounting ledger is created."
+      ],
       "browserRendered": true
     },
     {
@@ -3170,13 +3395,16 @@
       "collection": [
         "rx",
         "dispense",
-        "question"
+        "question",
+        "document"
       ],
       "description": "Load an approved prescription, choose unexpired stock, dispense partially and request same-salt substitutions. GST and batches follow the sale.",
       "ui": "/#journey/SJ10",
       "apis": [
         "/api/commands/document.generate",
+        "/api/commands/bill.discount",
         "/api/commands/pharmacy.receive",
+        "/api/commands/pharmacy.paperRx",
         "/api/commands/pharmacy.question",
         "/api/commands/pharmacy.dispense"
       ],
@@ -3198,6 +3426,18 @@
           "target": null
         },
         {
+          "name": "bill.discount",
+          "roles": [
+            "cashier",
+            "manager",
+            "pharmacist"
+          ],
+          "allowedFrom": [
+            "Unpaid"
+          ],
+          "target": "bill"
+        },
+        {
           "name": "pharmacy.receive",
           "roles": [
             "pharmacist"
@@ -3206,6 +3446,14 @@
             "Sent"
           ],
           "target": "rx"
+        },
+        {
+          "name": "pharmacy.paperRx",
+          "roles": [
+            "pharmacist"
+          ],
+          "allowedFrom": [],
+          "target": null
         },
         {
           "name": "pharmacy.question",
@@ -3239,7 +3487,8 @@
         "Allergy blocks unreviewed approval; pharmacist receives exact Rx; expired/mismatched batches fail; prescribing doctor approves substitution v2; dispense taxes reconcile; 4/10 return credits INR22.40 and restores batch."
       ],
       "browserBehavior": [
-        "Browser users scoped-search/open patient, confirm identity, type/review/save note, review medicine and send Rx; independent pharmacy browser acknowledges and dispenses; doctor sees fulfillment."
+        "Browser users scoped-search/open patient, confirm identity, type/review/save note, review medicine and send Rx; independent pharmacy browser acknowledges and dispenses; doctor sees fulfillment.",
+        "Pharmacist enters paper prescriber identity, uses the real file picker and medicine-line editor, opens the privately served scan through its UI link, and dispenses the matching batch. Original paper author and actual entering pharmacist are separate."
       ],
       "browserRendered": true
     },
@@ -3307,7 +3556,9 @@
       "apiEvidence": [
         "Allergy blocks unreviewed approval; pharmacist receives exact Rx; expired/mismatched batches fail; prescribing doctor approves substitution v2; dispense taxes reconcile; 4/10 return credits INR22.40 and restores batch."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Pharmacist returns part of an actual dispense through UI and stock/credit reconcile. A separate requisition goes through store PO/send/receipt/issue forms and pharmacy acceptance; stock rises once at receipt and once at the destination transfer."
+      ],
       "browserRendered": true
     },
     {
@@ -3402,7 +3653,9 @@
       "apiEvidence": [
         "INR82000 PO cannot send without independent approval; overreceipt rejected; MRP mismatch held without stock; receipt/issue/acceptance adds exactly 100 once to pharmacy."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Pharmacist returns part of an actual dispense through UI and stock/credit reconcile. A separate requisition goes through store PO/send/receipt/issue forms and pharmacy acceptance; stock rises once at receipt and once at the destination transfer."
+      ],
       "browserRendered": true
     },
     {
@@ -3505,7 +3758,9 @@
         "Expired write-off waits for approval and reduces stock only once; blocked vendor cannot receive new PO; maintenance asset status and service history persist.",
         "High-value stock count waits for approval; future MRP waits for separate approver and scheduler effective date; autonomous reminders record a run and respect patient opt-out; announcement dismissal is persona-scoped."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Browser admin changes assigned staff roles; old session is rejected and re-sign-in shows combined registration/billing/approval menus. Same identity can request under its manager role but cannot approve its own request; a different manager completes it."
+      ],
       "browserRendered": true
     },
     {
@@ -3627,7 +3882,9 @@
         "Urgent orders generate tariff bills; unpaid collection fails; payment failure leaves unpaid, success clears lab; wrong barcode and own verification fail; critical release appears in doctor/patient scopes; amendments preserve original review and require another review.",
         "Skip retains token; three calls mark Missed and explicit identity check can reopen; collection hold/resume persists; sample label stores actual scan code; narrative-only imaging verifies/releases independently."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Lab browser collects a covered order, rejects the first sample, recollects under a new barcode and accepts only that barcode. Original rejected container remains in history."
+      ],
       "browserRendered": true
     },
     {
@@ -3710,7 +3967,9 @@
         "Urgent orders generate tariff bills; unpaid collection fails; payment failure leaves unpaid, success clears lab; wrong barcode and own verification fail; critical release appears in doctor/patient scopes; amendments preserve original review and require another review.",
         "Skip retains token; three calls mark Missed and explicit identity check can reopen; collection hold/resume persists; sample label stores actual scan code; narrative-only imaging verifies/releases independently."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Lab verifier checks/releases a separately authored critical result through UI, consultant records action through UI, and an amendment requires a second independent verification/release and another doctor review. Original review remains."
+      ],
       "browserRendered": true
     },
     {
@@ -3805,7 +4064,9 @@
       "apiEvidence": [
         "Admission request is separate from clean-bed allotment; resident ward order needs countersignature; nurse charts dose once against order; ward pharmacy issue bills IPD; danger SpO2 creates consultant alert."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Desk admits an emergency into a clean bed via UI; nurse records a signed medicine dose, submits handover and transfers to another bed. Services completes cleaning; old bed is unavailable until then."
+      ],
       "browserRendered": true
     },
     {
@@ -3855,7 +4116,9 @@
       "apiEvidence": [
         "ICU move fails without signed order; valid move changes location, retains rate intervals, and sets old bed Cleaning until housekeeping releases it."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Desk admits an emergency into a clean bed via UI; nurse records a signed medicine dose, submits handover and transfers to another bed. Services completes cleaning; old bed is unavailable until then."
+      ],
       "browserRendered": true
     },
     {
@@ -3925,7 +4188,9 @@
       "apiEvidence": [
         "Admission request is separate from clean-bed allotment; resident ward order needs countersignature; nurse charts dose once against order; ward pharmacy issue bills IPD; danger SpO2 creates consultant alert."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Desk admits an emergency into a clean bed via UI; nurse records a signed medicine dose, submits handover and transfers to another bed. Services completes cleaning; old bed is unavailable until then."
+      ],
       "browserRendered": true
     },
     {
@@ -3945,6 +4210,7 @@
       "description": "Complete clearances after clinical approval, settle or approve credit and release the bed to Cleaning.",
       "ui": "/#journey/SJ19",
       "apis": [
+        "/api/admissions/{id}/estimate",
         "/api/commands/document.generate",
         "/api/commands/discharge.clear",
         "/api/commands/discharge.bill",
@@ -4021,7 +4287,9 @@
         "Resident drafts but cannot approve discharge; wrong PIN fails; consultant approval creates simultaneous nursing/billing handoffs; approved scheme share yields zero patient due; clearance releases bed to Cleaning; insurer query resubmission and deduction require independent approval.",
         "Self-pay final bill applies an actually paid INR100 advance and prorated bed intervals; gate pass is refused while the remaining bill is unpaid, then accepted after payment."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Nursing checks discharge clearances, cashier produces and pays the final bill, and nurse releases the actual admission from the browser. Gate pass releases the old bed to Cleaning, not Free."
+      ],
       "browserRendered": true
     },
     {
@@ -4039,12 +4307,24 @@
       "ui": "/#journey/SJ20",
       "apis": [
         "/api/commands/operation.schedule",
+        "/api/commands/operation.emergencySchedule",
         "/api/commands/operation.checklist",
         "/api/commands/operation.advance"
       ],
       "workflowCommands": [
         {
           "name": "operation.schedule",
+          "roles": [
+            "ot"
+          ],
+          "allowedFrom": [
+            "Requested",
+            "Reschedule requested"
+          ],
+          "target": "operation"
+        },
+        {
+          "name": "operation.emergencySchedule",
           "roles": [
             "ot"
           ],
@@ -4084,7 +4364,9 @@
       "apiEvidence": [
         "Overlapping theatre/surgeon booking is refused; consent and pre-op checks gate entry; theatre stages and charges persist; vaccine sets next due; desk prints only a doctor-issued serial certificate."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "OT coordinator chooses an emergency and a different patient’s conflicting planned case, enters both times and reason, and submits one atomic move. Surgeon sees the durable change notification and accepts the revised slot; pre-op checks are not bypassed."
+      ],
       "browserRendered": true
     },
     {
@@ -4130,7 +4412,9 @@
       "apiEvidence": [
         "Day-care conversion assigns IPD location while preserving the original admission/chart links and package charge without rebilling."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Nurse starts day care and converts it to IPD through forms, preserving the admission and one package bill. A Hindi consent record is filed with witness/time and a real generated Hindi consent PDF retains that language."
+      ],
       "browserRendered": true
     },
     {
@@ -4150,11 +4434,28 @@
       "description": "Record vaccine batches and next doses, infection actions, signed consents and doctor-issued serial certificates.",
       "ui": "/#journey/SJ22",
       "apis": [
+        "/api/commands/document.generate",
         "/api/commands/register.record",
         "/api/commands/consent.sign",
         "/api/commands/certificate.print"
       ],
       "workflowCommands": [
+        {
+          "name": "document.generate",
+          "roles": [
+            "doctor",
+            "resident",
+            "desk",
+            "cashier",
+            "patient",
+            "nurse",
+            "manager",
+            "lab",
+            "pharmacist"
+          ],
+          "allowedFrom": [],
+          "target": null
+        },
         {
           "name": "register.record",
           "roles": [
@@ -4190,7 +4491,9 @@
       "apiEvidence": [
         "Overlapping theatre/surgeon booking is refused; consent and pre-op checks gate entry; theatre stages and charges persist; vaccine sets next due; desk prints only a doctor-issued serial certificate."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Nurse starts day care and converts it to IPD through forms, preserving the admission and one package bill. A Hindi consent record is filed with witness/time and a real generated Hindi consent PDF retains that language."
+      ],
       "browserRendered": true
     },
     {
@@ -4249,7 +4552,9 @@
       "apiEvidence": [
         "Package creates linked test orders and a single fixed-price bill; incomplete pack cannot release; every skipped item needs a persisted reason before pack release."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Desk sells one package in the browser, explicitly skips each generated test with a reason, then releases the completed pack. There is one fixed-price package bill rather than duplicate individual charges."
+      ],
       "browserRendered": true
     },
     {
@@ -4312,7 +4617,9 @@
       "apiEvidence": [
         "Transport assignment reserves a service-ready matching vehicle; stages complete an 18km trip at master rate INR450 and free the vehicle."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Services browser assigns/advances a transport request and bills its distance; nurse creates a tray from a signed diet order and services checks/delivers it. Mortuary release requires certificate, MLC clearance and distinct second staff; cabinet is freed."
+      ],
       "browserRendered": true
     },
     {
@@ -4360,7 +4667,9 @@
       "apiEvidence": [
         "Nursing diet requires a signed matching doctor order; nil-by-mouth produces no deliverable tray and kitchen delivery is refused."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Services browser assigns/advances a transport request and bills its distance; nurse creates a tray from a signed diet order and services checks/delivers it. Mortuary release requires certificate, MLC clearance and distinct second staff; cabinet is freed."
+      ],
       "browserRendered": true
     },
     {
@@ -4406,7 +4715,9 @@
       "apiEvidence": [
         "MLC mortuary release blocks without police clearance or distinct second staff; successful release frees cabinet and stores only receiver-ID last four."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Services browser assigns/advances a transport request and bills its distance; nurse creates a tray from a signed diet order and services checks/delivers it. Mortuary release requires certificate, MLC clearance and distinct second staff; cabinet is freed."
+      ],
       "browserRendered": true
     },
     {
@@ -4501,7 +4812,9 @@
       "apiEvidence": [
         "Staff request reaches support; closure requires work note; original requester can reopen within the 24-hour window."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Nurse raises facility work; services assigns and closes with action; original requester reopens within the allowed window. Both assigned team and original closure remain in persisted history."
+      ],
       "browserRendered": true
     },
     {
@@ -4553,7 +4866,9 @@
       "apiEvidence": [
         "Incomplete file remains open; coding preserves doctor words and feeds disease report; hospital document republish preserves v1/v2; census matches actual check-ins, CSV, and demographic totals."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "MRD codes a completed missing-code note without rewriting clinical words, publishes two versions of an owned SOP, and can inspect prior history. Desk logs an enquiry/complaint; operations closes with a persisted action."
+      ],
       "browserRendered": true
     },
     {
@@ -4589,7 +4904,9 @@
       "apiEvidence": [
         "Incomplete file remains open; coding preserves doctor words and feeds disease report; hospital document republish preserves v1/v2; census matches actual check-ins, CSV, and demographic totals."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "MRD codes a completed missing-code note without rewriting clinical words, publishes two versions of an owned SOP, and can inspect prior history. Desk logs an enquiry/complaint; operations closes with a persisted action."
+      ],
       "browserRendered": true
     },
     {
@@ -4619,7 +4936,9 @@
       "apiEvidence": [
         "Incomplete file remains open; coding preserves doctor words and feeds disease report; hospital document republish preserves v1/v2; census matches actual check-ins, CSV, and demographic totals."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Cashier selects a master scheme in UI and cannot edit its price, submits/receives pre-authorisation, sees INR4000 remaining patient share, counts actual note denominations, signs off/sends the counter report and downloads a matching accounts CSV. No accounting ledger is created."
+      ],
       "browserRendered": true
     },
     {
@@ -4692,7 +5011,9 @@
       "apiEvidence": [
         "Enquiry and complaint retain action records; provider failure creates masked failed message; retry retains both attempts and changes only simulated delivery status."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "MRD codes a completed missing-code note without rewriting clinical words, publishes two versions of an owned SOP, and can inspect prior history. Desk logs an enquiry/complaint; operations closes with a persisted action."
+      ],
       "browserRendered": true
     },
     {
@@ -4723,7 +5044,8 @@
         "/api/commands/item.price",
         "/api/commands/payer.create",
         "/api/commands/bed.create",
-        "/api/commands/package.create"
+        "/api/commands/package.create",
+        "/api/commands/package.proposeRates"
       ],
       "workflowCommands": [
         {
@@ -4794,6 +5116,14 @@
           ],
           "allowedFrom": [],
           "target": null
+        },
+        {
+          "name": "package.proposeRates",
+          "roles": [
+            "manager"
+          ],
+          "allowedFrom": [],
+          "target": null
         }
       ],
       "evidenceFile": "docs/traceability.json",
@@ -4803,7 +5133,9 @@
         "Price requires future date and a different approver; today’s bills keep old rate; after effective date new bill uses approved rate while historical bill is unchanged.",
         "High-value stock count waits for approval; future MRP waits for separate approver and scheduler effective date; autonomous reminders record a run and respect patient opt-out; announcement dismissal is persona-scoped."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Operations proposes a future payer tariff through UI; another manager approves through UI. Existing paid/unpaid bill snapshots keep their old amount and the proposed master becomes Approved without repricing them."
+      ],
       "browserRendered": true
     },
     {
@@ -4861,7 +5193,9 @@
         "Self approval fails; scheduled job failure is a persisted run visible on Home.",
         "High-value stock count waits for approval; future MRP waits for separate approver and scheduler effective date; autonomous reminders record a run and respect patient opt-out; announcement dismissal is persona-scoped."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Browser admin changes assigned staff roles; old session is rejected and re-sign-in shows combined registration/billing/approval menus. Same identity can request under its manager role but cannot approve its own request; a different manager completes it."
+      ],
       "browserRendered": true
     },
     {
@@ -4879,9 +5213,21 @@
       "apis": [
         "/api/auth/captcha",
         "/api/auth/patient",
-        "/api/auth/otp"
+        "/api/auth/otp",
+        "/api/commands/preferences.language"
       ],
-      "workflowCommands": [],
+      "workflowCommands": [
+        {
+          "name": "preferences.language",
+          "roles": [
+            "doctor",
+            "resident",
+            "patient"
+          ],
+          "allowedFrom": [],
+          "target": null
+        }
+      ],
       "evidenceFile": "docs/traceability.json",
       "verificationScope": "Primary substantive API journey behavior, plus explicitly listed browser interactions. A rendered route is not behavioral evidence for every substep.",
       "primaryApiStatus": "primary_api_behavior_verified",
@@ -4889,7 +5235,8 @@
         "Mobile/captcha/OTP login returns only linked family; online booking shares the desk slot grid and duplicate slot booking is atomically refused."
       ],
       "browserBehavior": [
-        "Patient browser remains isolated to its linked sample family; an unrelated newly registered patient and other-family record are absent."
+        "Patient browser remains isolated to its linked sample family; an unrelated newly registered patient and other-family record are absent.",
+        "Patient enters the registered mobile and visible captcha, verifies the displayed simulated OTP, and gets only that family. A real independently approved patient-owned insurer deduction appears as due and is paid through the patient form."
       ],
       "browserRendered": true
     },
@@ -4947,7 +5294,9 @@
         "Mobile/captcha/OTP login returns only linked family; online booking shares the desk slot grid and duplicate slot booking is atomically refused.",
         "Shared slot API returns availability without identities; online booking creates a payable fee; eligible online cancellation refunds the original non-cash mode."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Doctor switches UI/print language, types mixed original Hindi/English note content, submits through Hindi controls and obtains an actual PDF whose parsed tagged logical text preserves it. Patient uses Hindi-labelled registration/slot fields to create a real shared booking; mobile Hindi page has no horizontal overflow."
+      ],
       "browserRendered": true
     },
     {
@@ -5064,7 +5413,10 @@
         "Urgent orders generate tariff bills; unpaid collection fails; payment failure leaves unpaid, success clears lab; wrong barcode and own verification fail; critical release appears in doctor/patient scopes; amendments preserve original review and require another review.",
         "Shared slot API returns availability without identities; online booking creates a payable fee; eligible online cancellation refunds the original non-cash mode."
       ],
-      "browserBehavior": [],
+      "browserBehavior": [
+        "Patient browser exercises a failed payment without settling the bill, retries successfully with exact due, and saves opt-out choices for linked family members. Provider attempts and receipt remain distinct from optional notifications.",
+        "Patient enters the registered mobile and visible captcha, verifies the displayed simulated OTP, and gets only that family. A real independently approved patient-owned insurer deduction appears as due and is paid through the patient form."
+      ],
       "browserRendered": true
     }
   ]

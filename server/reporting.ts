@@ -1,11 +1,12 @@
-import { text, num, rows, istDate, doctorRoles, adminRoles, reportKinds, type Actor, type Data, type Entity, type Snapshot } from '../shared/model.js';
+import { text, num, rows, istDate, doctorRoles, adminRoles, staffRoles, reportKinds, actorRoles, hasRole, type Actor, type Data, type Entity, type Snapshot } from '../shared/model.js';
 import { Store, requireThat } from './store.js';
 import { visible, safeEntity, notifications } from './context.js';
+import { homePolicy } from './home.js';
 
 export function report(store: Store, actor: Actor, kind: string, from = '', to = '', department = ''): Data[] {
-  const allowed = ['superadmin', 'admin', 'head', 'it', 'manager', 'cashier', 'pharmacist', 'store', 'lab', 'mrd', 'doctor', 'resident'];
-  requireThat(allowed.includes(actor.role), 'Your role cannot view reports.');
-  requireThat(reportKinds[actor.role]?.includes(kind), 'This report is outside your role’s authorized reporting scope.');
+  const reportingRole = actorRoles(actor).find(role => reportKinds[role]?.includes(kind));
+  requireThat(reportingRole, 'This report is outside your assigned roles’ authorized reporting scope.');
+  actor = { ...actor, role: reportingRole };
   if (actor.role === 'head') department = actor.department;
   if (actor.role === 'it') requireThat(kind === 'sync', 'IT support can view only phone and sync health.');
   const inRange = (e: Entity) => {
@@ -65,12 +66,24 @@ export function report(store: Store, actor: Actor, kind: string, from = '', to =
       const receipts = only('payment').filter(e => e.status === 'Paid');
       const gross = receipts.flatMap(e => rows(e.data, 'payments')).filter(e => text(e, 'mode') === mode).reduce((n, e) => n + num(e, 'amount'), 0);
       const refunds = only('refund').filter(e => e.status === 'Completed').reduce((n, e) => {
+        const exact = rows(e.data, 'refundModes');
+        if (exact.length) return n + exact.filter(part => text(part, 'mode') === mode).reduce((sum, part) => sum + num(part, 'amount'), 0);
         const paid = rows(e.data, 'originalModes'); const total = paid.reduce((x, p) => x + num(p, 'amount'), 0); const part = paid.filter(p => text(p, 'mode') === mode).reduce((x, p) => x + num(p, 'amount'), 0);
         return n + Math.round(num(e.data, 'amount') * part / Math.max(1, total));
       }, 0);
       return { mode, grossPaise: gross, refundsPaise: refunds, netPaise: gross - refunds };
     });
   }
+  if (kind === 'claims') return only('claim').map(claim => ({ claimId: claim.id, payer: text(claim.data, 'payer'), status: claim.status,
+    requestedPaise: num(claim.data, 'requested'), approvedPaise: num(claim.data, 'approvedAmount'), approvedUntil: text(claim.data, 'validUntil'),
+    claimedPaise: num(claim.data, 'claimedAmount'), settledPaise: num(claim.data, 'settled'), deductionPaise: num(claim.data, 'deduction'),
+    deductionOwner: text(claim.data, 'deductionOwner'), ledgerMaintained: false }));
+  if (kind === 'day-end') return only('counterClose').filter(close => hasRole(actor, ['manager']) || close.createdBy === actor.id).map(close => ({
+    counter: text(close.data, 'counter'), date: text(close.data, 'date'), status: close.status, cashExpectedPaise: num(close.data, 'expected'),
+    cashCountedPaise: num(close.data, 'counted'), differencePaise: num(close.data, 'difference'), varianceReason: text(close.data, 'reason'),
+    discountsPaise: num(close.data, 'discounts'), cancelledBills: num(close.data, 'cancelledBills'), netPaise: num(close.data, 'net'),
+    signedOffBy: text(close.data, 'signedOffBy') || close.updatedBy, modes: rows(close.data, 'modes'), ledgerMaintained: false
+  }));
   if (kind === 'orders') return [{ metric: 'Approved prescriptions', value: only('rx').filter(e => e.status !== 'Draft').length }, { metric: 'Test orders', value: only('order').length }];
   if (kind === 'accounts') return ['access', 'account', 'roleApproval'].map(type => ({ record: type, total: only(type).length, pending: only(type).filter(e => ['Requested', 'Invited', 'Pending'].includes(e.status)).length }));
   if (kind === 'pharmacy') return [{ issuedLines: only('dispense').length, issuedValuePaise: only('dispense').reduce((n, e) => n + num(e.data, 'total'), 0), returnCreditPaise: only('return').reduce((n, e) => n + num(e.data, 'credit'), 0) }];
@@ -92,11 +105,22 @@ export function report(store: Store, actor: Actor, kind: string, from = '', to =
   ];
 }
 export function snapshot(store: Store, actor: Actor): Snapshot {
+  const home = homePolicy(store, actor.department);
+  if (doctorRoles.includes(actor.role)) {
+    const locked = Array.isArray(home.lockedCards) ? home.lockedCards : [];
+    actor = { ...actor, preferences: { ...actor.preferences, hiddenCards: text(actor.preferences, 'hiddenCards').split(',').filter(id => !locked.includes(id)).join(',') } };
+  }
   const entities = store.all().filter(e => visible(store, actor, e)).map(e => safeEntity(actor, e));
-  const people = store.people().filter(person =>
-    actor.id === person.id || (adminRoles.includes(actor.role) && actor.role !== 'auditor' && (actor.role !== 'head' || person.department === actor.department)) ||
-    person.role === 'doctor' || (actor.role === 'services' && person.role === 'services')
-  ).map(person => adminRoles.includes(actor.role) ? person : { ...person, login: '', staffId: '', mobile: '', patientIds: [], preferences: {}, counter: '' });
+  const people = store.people().filter(person => {
+    if (actor.id === person.id) return true;
+    if (actor.role === 'auditor') return false;
+    if (actor.role === 'head') return person.department === actor.department && doctorRoles.includes(person.role);
+    if (['superadmin', 'admin', 'it'].includes(actor.role)) return person.role !== 'patient';
+    if (actor.role === 'patient') return person.role === 'doctor';
+    return doctorRoles.includes(person.role) || staffRoles.includes(person.role);
+  }).map(person => person.id === actor.id ? person : adminRoles.includes(actor.role)
+    ? { ...person, patientIds: [], preferences: {} }
+    : { ...person, login: '', staffId: '', mobile: '', patientIds: [], preferences: {}, counter: '' });
   const day = istDate(store.now());
   const signins = store.all('signin').filter(e => e.createdBy === actor.id && istDate(e.createdAt) === day).map(e => e.createdAt).sort();
   const summary: Data = {
@@ -113,7 +137,7 @@ export function snapshot(store: Store, actor: Actor): Snapshot {
     duePaise: entities.filter(e => e.type === 'bill' && ['Unpaid', 'Part paid'].includes(e.status)).reduce((n, e) => n + num(e.data, 'total') - num(e.data, 'paid'), 0)
   };
   return { actor, entities, people, now: store.now(), revision: store.revision(), notifications: notifications(store, actor, entities), summary,
-    settings: { policy: store.setting<Data>('policy', {}), rules: store.setting<Data>('rules', {}), assumptions: 'Synthetic staff-owned billing and AJ22 staff administration; no production authority or migration decision. Public shared demo, not production authentication.' },
+    settings: { policy: store.setting<Data>('policy', {}), rules: store.setting<Data>('rules', {}), home, assumptions: 'Synthetic staff-owned billing and AJ22 staff administration; no production authority or migration decision. Public shared demo, not production authentication.' },
     faults: store.setting<Data>(`faults:${actor.id}`, { next: 'None' }) };
 }
 export function csv(records: Data[]): string {

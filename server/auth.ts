@@ -1,6 +1,6 @@
 import { randomBytes, randomInt, randomUUID, scryptSync, timingSafeEqual, createHash } from 'node:crypto';
 import type { Request, Response } from 'express';
-import { adminRoles, doctorRoles, text, num, type Actor, type Data } from '../shared/model.js';
+import { adminRoles, doctorRoles, actorRoles, text, num, type Actor, type Data, type Role } from '../shared/model.js';
 import { Store, DomainError, requireThat } from './store.js';
 
 export const demoPassword = 'SamplePass2026!';
@@ -25,7 +25,7 @@ export function cookie(req: Request, name: string) {
 export function setCookie(req: Request, res: Response, name: string, value: string, maxAge = 43200000) {
   res.cookie(name, value, { httpOnly: true, sameSite: 'strict', secure: req.headers['x-forwarded-proto'] === 'https' || req.secure, path: '/', maxAge });
 }
-export type Session = { actorId: string; createdAt: string; lastAt: string; restricted: boolean; locked: boolean; deviceId: string; role: string; key: string };
+export type Session = { actorId: string; createdAt: string; lastAt: string; restricted: boolean; locked: boolean; deviceId: string; role: string; roles?: Role[]; key: string };
 export class Auth {
   constructor(public store: Store) {}
   private saveSession(key: string, session: Session) {
@@ -40,7 +40,7 @@ export class Auth {
     if (!['Active', 'Invited'].includes(actor.state)) {
       throw new DomainError(401, 'ACCESS_REVOKED', `Your account is ${actor.state.toLowerCase()}. Saved drafts are kept for recovery. Contact IT.`);
     }
-    if (actor.role !== session.role) throw new DomainError(401, 'ROLE_CHANGED', 'Your role changed. Sign in again to use the new permissions.');
+    if (actor.role !== session.role || [...(session.roles ?? [session.role])].sort().join(',') !== actorRoles(actor).sort().join(',')) throw new DomainError(401, 'ROLE_CHANGED', 'Your assigned roles changed. Sign in again to use the current permissions. Saved work keeps its original author.');
     const device = this.store.all('device').find(e => text(e.data, 'deviceId') === session.deviceId && text(e.data, 'actorId') === actor.id);
     if (device && device.status !== 'Active') {
       throw new DomainError(401, device.status === 'Wipe pending' ? 'WIPE_PENDING' : 'DEVICE_SIGNED_OUT', device.status === 'Wipe pending' ? 'Hospital IT requested removal of this browser’s Samford data. Record your unsent recovery before confirming the wipe.' : 'This device was signed out by IT. Your drafts are retained; contact support.');
@@ -94,8 +94,18 @@ export class Auth {
     this.store.set(`captcha:${captchaId}`, {});
     const locked = this.store.setting<number>(`patientLock:${mobile}`, 0);
     if (locked > Date.now()) throw new DomainError(429, 'OTP_LOCKED', 'Sign-in is locked for 30 minutes after three wrong codes.');
-    const actor = this.store.people().find(p => p.role === 'patient' && p.mobile === mobile);
-    if (!actor) throw new DomainError(401, 'MOBILE_NOT_REGISTERED', 'No sample family is linked to that mobile. Ask the front desk.');
+    const patients = this.store.all('patient').filter(patient => patient.status === 'Active' && text(patient.data, 'mobile') === mobile);
+    if (!patients.length) throw new DomainError(401, 'MOBILE_NOT_REGISTERED', 'No sample family is linked to that mobile. Ask the front desk.');
+    let actor = this.store.people().find(p => p.role === 'patient' && p.mobile === mobile);
+    if (!actor) actor = this.store.transact(() => {
+      const id = `family-${randomUUID()}`;
+      const patientActor: Actor = { id, name: 'Synthetic patient family', role: 'patient', roles: ['patient'], department: 'general', state: 'Active', login: id, staffId: id,
+        mobile, patientIds: patients.map(patient => patient.id), verifier: false, profileConfirmed: true, temporary: false, counter: 'Online', appVersion: 1, preferences: {} };
+      this.store.savePerson(patientActor, credential(randomBytes(32).toString('base64url')));
+      this.store.create('account', { name: patientActor.name, role: 'patient', roles: ['patient'] }, 'System', { id, status: 'Active' });
+      this.store.audit('System', 'system', 'patient.portalIdentity', id, null, { linkedRecordCount: patients.length });
+      return patientActor;
+    });
     return this.challenge(actor, deviceId, false);
   }
   complete(challengeId: string, code: string, req: Request, res: Response): Actor {
@@ -129,7 +139,7 @@ export class Auth {
     this.store.db.prepare('DELETE FROM auth_challenges WHERE id=?').run(challengeId);
     const key = randomBytes(32).toString('base64url');
     const now = this.store.now();
-    const session: Session = { actorId: actor.id, createdAt: now, lastAt: now, restricted: Boolean(challenge.temporary), locked: false, deviceId: text(challenge, 'deviceId'), role: actor.role, key };
+    const session: Session = { actorId: actor.id, createdAt: now, lastAt: now, restricted: Boolean(challenge.temporary), locked: false, deviceId: text(challenge, 'deviceId'), role: actor.role, roles: actorRoles(actor), key };
     this.saveSession(key, session);
     setCookie(req, res, 'samford_actor', key);
     const device = this.store.all('device').find(e => text(e.data, 'actorId') === actor.id && text(e.data, 'deviceId') === session.deviceId);

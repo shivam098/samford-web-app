@@ -4,23 +4,31 @@ import { join, resolve } from 'node:path';
 import QRCode from 'qrcode';
 import { Store, DomainError, requireThat } from './store.js';
 import { seed } from './seed.js';
+import { migrate } from './migrate.js';
+import { applicationVersion } from '../shared/version.js';
 import { Auth, cookie, hash, demoPassword } from './auth.js';
 import { commands } from '../shared/commands.js';
 import { traceability } from '../shared/traceability.js';
-import { doctorRoles, text, num, type Data, type CommandRequest, type Field } from '../shared/model.js';
+import { handoverSummary } from './handover.js';
+import { packageQuote, admissionCharges, counterSummary } from './finance.js';
+import { doctorRoles, hasRole, text, num, type Data, type CommandRequest, type Field } from '../shared/model.js';
 import { execute, anchorFor, auditSafe } from './engine.js';
-import { visible, safeEntity, slotsFor } from './context.js';
+import { Context, visible, safeEntity, slotsFor } from './context.js';
 import { snapshot, report, csv } from './reporting.js';
 import { scheduledChecks } from './admin.js';
 import { makePdf, validateUploadedFile } from './documents.js';
 
-const demoIds = ['doctor-a', 'doctor-b', 'resident', 'super', 'super-two', 'admin', 'head', 'it', 'auditor', 'desk', 'cashier', 'pharmacy', 'store', 'nurse', 'lab', 'verifier', 'ot', 'mrd', 'services', 'services-two', 'manager', 'manager-two', 'family', 'other-family'];
+const demoIds = ['doctor-a', 'doctor-b', 'resident', 'super', 'super-two', 'admin', 'head', 'it', 'auditor', 'desk', 'cashier', 'desk-cashier', 'pharmacy', 'store', 'nurse', 'lab', 'verifier', 'ot', 'mrd', 'services', 'services-two', 'manager', 'manager-two', 'family', 'other-family'];
 const escape = (text: string) => text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
 function fieldSchema(field: Field): Data {
   const schema: Data = { title: field.label, description: field.help || field.label };
   if (field.kind === 'number') { schema.type = 'number'; if (field.min !== undefined) schema.minimum = field.min; if (field.max !== undefined) schema.maximum = field.max; }
   else if (field.kind === 'boolean') { schema.type = 'boolean'; if (field.required) schema.const = true; }
   else if (['tests', 'checklist'].includes(field.kind)) { schema.type = 'array'; schema.items = { type: 'string' }; }
+  else if (field.kind === 'handovers') { schema.type = 'array'; schema.items = { type: 'object', required: ['group', 'receiverType'], properties: { group: { type: 'string' }, receiverType: { enum: ['Doctor', 'Department queue', 'Leave waiting'] }, receiverId: { type: 'string' } } }; }
+  else if (field.kind === 'homeLayout') { schema.type = 'object'; schema.required = ['cards']; schema.properties = { cards: { type: 'array', minItems: 5, maxItems: 5, items: { type: 'object', required: ['id', 'visible', 'rows'], properties: { id: { enum: ['visits', 'referrals', 'results', 'admissions', 'pending'] }, visible: { type: 'boolean' }, rows: { type: 'integer', minimum: 1, maximum: 20 } } } } }; }
+  else if (field.kind === 'payerRates') { schema.type = 'object'; schema.additionalProperties = { type: 'number', minimum: 0 }; schema.description = 'INR rates keyed by Self, Ayushman, CGHS, TPA or Corporate; persisted as paise.'; }
+  else if (field.kind === 'denominations') { schema.oneOf = [{ type: 'object', additionalProperties: { type: 'integer', minimum: 0 } }, { type: 'string', description: 'Legacy form: 500x2,100x1 or 0.' }]; }
   else if (field.kind === 'medicines') { schema.type = 'array'; schema.items = { type: 'object', required: ['itemId', 'dose', 'frequency', 'route', 'days', 'quantity', 'reviewed'],
     properties: { itemId: { type: 'string' }, dose: { type: 'string' }, frequency: { type: 'string' }, route: { type: 'string' }, days: { type: 'integer', minimum: 1, maximum: 365 }, quantity: { type: 'integer', minimum: 1 }, reviewed: { const: true }, start: { type: 'string', format: 'date' }, food: { type: 'string' }, remark: { type: 'string' } } }; }
   else if (field.kind === 'payments') { schema.type = 'array'; schema.items = { type: 'object', required: ['mode', 'amount'], properties: { mode: { enum: ['Cash', 'UPI', 'Card'] }, amount: { type: 'number', exclusiveMinimum: 0, description: 'Amount in INR; persisted money is integer paise.' } } }; }
@@ -40,6 +48,7 @@ function apiReference(): Data {
         properties: {
           operationId: { type: 'string', minLength: 12, description: 'Stable per logical attempt. Retry unchanged; changing content needs a new ID.' },
           actorId: { type: 'string', description: 'Must equal the signed-in actor; replay never reattributes old work to a new persona.' },
+          actingRole: { type: 'string', description: 'Optional assigned staff role for this action. Never changes the actor identity or bypasses independent-person approval.' },
           targetId: { type: 'string' }, expectedVersion: { type: 'integer', description: 'Required for target or first visitId/admissionId/patientId context.' },
           createdAt: { type: 'string', format: 'date-time' }, deviceId: { type: 'string' },
           contextVersions: { type: 'object', additionalProperties: { type: 'integer' }, description: 'Reviewed context versions. Prescription approval requires patient allergy context.' },
@@ -69,6 +78,10 @@ function apiReference(): Data {
     ['/api/entities/{id}', 'get', 'Authorized entity detail'],
     ['/api/export/entities', 'get', 'Audited staff/admin worklist CSV; types,q,status match the displayed list'],
     ['/api/slots', 'get', 'Shared slot grid: doctorId,date; states only, never other patients’ identities'],
+    ['/api/accounts/{id}/handover', 'get', 'Administrative counts/UHIDs and unsent metadata by handover group; no clinical payloads'],
+    ['/api/packages/{id}/quote', 'get', 'Authoritative effective payer package quote, payer query parameter'],
+    ['/api/admissions/{id}/estimate', 'get', 'Read-only package, approved insurer share/expiry, advance and current patient liability'],
+    ['/api/counters/summary', 'get', 'Current counter totals by payment/refund mode before denomination reconciliation'],
     ['/api/history/{id}', 'get', 'Authorized immutable versions of a record'],
     ['/api/receipts/{operationId}', 'get', 'Own operation outcome for timeout reconciliation'],
     ['/api/sync/device', 'post', 'Report original-persona unsent count and last sync'],
@@ -81,11 +94,13 @@ function apiReference(): Data {
     ['/api/demo/reset', 'post', 'Superadmin reset after exact confirmation; no silent reseeding'],
     ['/api/traceability', 'get', 'Journey-to-UI/API map; evidence is maintained by executed tests']
   ]) paths[path] = { [method]: { summary, responses: { '200': { description: 'Success within the caller scope' }, '401': { description: 'Sign-in/lock/onboarding required' }, '403': { description: 'Role or scope denied' } } } };
-  return { openapi: '3.1.0', info: { title: 'Samford synthetic workflow API', version: '0.1.0', description: 'Public, shared synthetic demo. Not production authentication, clinical software, legal signing, medical advice or a live integration. Every mutation is transactional. Money is stored in integer paise. All external effects are simulated.' }, servers: [{ url: '/' }], paths };
+  return { openapi: '3.1.0', info: { title: 'Samford synthetic workflow API', version: applicationVersion, description: 'Public, shared synthetic demo. Not production authentication, clinical software, legal signing, medical advice or a live integration. Every mutation is transactional. Money is stored in integer paise. All external effects are simulated.' }, servers: [{ url: '/' }], paths };
 }
 export function createApplication(options: { database: string; dist?: string; test?: boolean }) {
-  const store = new Store(options.database); seed(store); scheduledChecks(store);
-  const auth = new Auth(store); const app = express(); const staticRoot = resolve(options.dist ?? 'dist');
+  const store = new Store(options.database);
+  try { seed(store); migrate(store); scheduledChecks(store); }
+  catch (error) { store.close(); throw error; }
+  const auth = new Auth(store); const app = express(); const staticRoot = resolve(options.dist ?? 'dist-candidate');
   app.disable('x-powered-by');
   app.use((req, res, next) => {
     res.set({
@@ -121,10 +136,10 @@ export function createApplication(options: { database: string; dist?: string; te
     next();
   });
   app.use(express.json({ limit: '15mb', strict: true }));
-  app.get('/api/health', (_req, res) => res.json({ status: 'ok', synthetic: true, version: '0.1.0' }));
+  app.get('/api/health', (_req, res) => res.json({ status: 'ok', synthetic: true, version: applicationVersion }));
   app.get('/api/bootstrap', (_req, res) => res.json({
     publicDemo: true, warning: 'PUBLIC SHARED SYNTHETIC DEMO. Anyone with this URL can use demo personas and change sample data. Do not enter real patient information or credentials.',
-    personas: store.people().filter(actor => demoIds.includes(actor.id)).map(actor => ({ id: actor.id, name: actor.name, role: actor.role, department: actor.department, state: actor.state, mobile: actor.role === 'patient' ? actor.mobile : '' })),
+    personas: store.people().filter(actor => demoIds.includes(actor.id)).map(actor => ({ id: actor.id, name: actor.name, role: actor.role, roles: actor.roles, department: actor.department, state: actor.state, mobile: actor.role === 'patient' ? actor.mobile : '' })),
     departments: store.all('department').map(e => ({ id: e.id, name: text(e.data, 'name') })),
     demoPassword, demoPin: '2468', version: 1
   }));
@@ -183,9 +198,36 @@ export function createApplication(options: { database: string; dist?: string; te
     res.json({ id: record.id, status: record.status, reason: text(record.data, 'reason'), accountId: text(record.data, 'accountId'), login: text(record.data, 'staffId').toLowerCase(), message: 'Temporary passwords are handed over by administration; this page never reveals one.' });
   });
   app.get('/api/state', (req, res) => res.json(snapshot(store, auth.get(req).actor)));
+  app.get('/api/accounts/:id/handover', (req, res) => {
+    const actor = auth.get(req).actor;
+    requireThat(['superadmin', 'admin'].includes(actor.role), 'Only authorized account administrators can review handover counts.');
+    const person = store.person(String(req.params.id));
+    requireThat(doctorRoles.includes(person.role), 'Choose a clinical account for a handover.');
+    res.json(handoverSummary(store, person.id));
+  });
+  app.get('/api/packages/:id/quote', (req, res) => {
+    const actor = auth.get(req).actor; const pkg = store.get(String(req.params.id), 'package');
+    requireThat(visible(store, actor, pkg), 'This package is outside your scope.');
+    res.json(packageQuote(store, pkg.id, String(req.query.payer ?? 'Self')));
+  });
+  app.get('/api/admissions/:id/estimate', (req, res) => {
+    const actor = auth.get(req).actor; const admission = store.get(String(req.params.id), 'admission');
+    requireThat(hasRole(actor, ['desk', 'cashier', 'nurse', 'manager', 'doctor', 'resident']) && visible(store, actor, admission), 'This admission estimate is outside your scope.');
+    const ctx = new Context(store, actor, { operationId: 'read-only-estimate', actorId: actor.id, createdAt: store.now(), deviceId: 'read-only', payload: {} });
+    const estimate = admissionCharges(ctx, admission);
+    const gross = estimate.lines.reduce((sum, line) => sum + num(line, 'total'), 0);
+    const afterCover = gross - estimate.insurerShare;
+    res.json({ lines: estimate.lines, packageQuote: estimate.quote ?? null, gross, insurerShare: estimate.insurerShare, coverageValidUntil: estimate.agreement ? text(estimate.agreement.data, 'validUntil') : '',
+      recordedAdvance: estimate.advances, patientShareBeforeAdvance: afterCover, patientDue: Math.max(0, afterCover - estimate.advances), estimatedAt: store.now() });
+  });
+  app.get('/api/counters/summary', (req, res) => {
+    const actor = auth.get(req).actor;
+    requireThat(hasRole(actor, ['desk', 'cashier', 'pharmacist', 'manager']), 'Your roles do not operate payment counters.');
+    res.json(counterSummary(store, actor.counter));
+  });
   app.get('/api/slots', (req, res) => {
     const actor = auth.get(req).actor;
-    requireThat(['doctor', 'resident', 'desk', 'manager', 'patient'].includes(actor.role), 'Your role cannot view appointment slots.');
+    requireThat(hasRole(actor, ['doctor', 'resident', 'desk', 'manager', 'patient']), 'Your assigned roles cannot view appointment slots.');
     const doctorId = String(req.query.doctorId ?? ''); const date = String(req.query.date ?? '');
     requireThat(/^\d{4}-\d{2}-\d{2}$/.test(date), 'Choose a valid date.');
     const exclude = String(req.query.excludeVisitId ?? '');
@@ -221,8 +263,9 @@ export function createApplication(options: { database: string; dist?: string; te
   app.post('/api/commands/:name', async (req, res) => {
     const { actor, session } = auth.get(req);
     const name = String(req.params.name); const request = req.body as CommandRequest;
+    requireThat(request && typeof request === 'object' && request.payload && typeof request.payload === 'object' && !Array.isArray(request.payload), 'Provide a structured command request and payload.');
     requireThat(request.deviceId === session.deviceId, 'The action belongs to a different browser. Sign in on the original device.');
-    if (name === 'document.upload') await validateUploadedFile(request.payload?.file);
+    if (name === 'document.upload' || name === 'pharmacy.paperRx') await validateUploadedFile(request.payload?.file);
     if (name === 'note.save' && request.payload?.handwriting) await validateUploadedFile(request.payload.handwriting);
     const fault = store.setting<Data>(`faults:${actor.id}`, { next: 'None' }); const next = text(fault, 'next');
     if (next !== 'None') store.set(`faults:${actor.id}`, { next: 'None' });
@@ -270,14 +313,15 @@ export function createApplication(options: { database: string; dist?: string; te
   app.get('/api/documents/:id/file', async (req, res) => {
     const actor = auth.get(req).actor; const document = store.get(String(req.params.id), 'document');
     if (!visible(store, actor, document) || document.status !== 'Available') throw new DomainError(404, 'NOT_FOUND', 'This document is unavailable in your scope.');
-    const data = document.data; const filename = text(data, 'name').replace(/[^a-zA-Z0-9 ._-]/g, '_').slice(0, 100);
+    const data = document.data; const filename = text(data, 'name').replace(/[\u0000-\u001f\u007f"\\/:*?<>|]/g, '_').slice(0, 100);
+    const downloadName = `${filename}${data.generated ? '.pdf' : ''}`; const asciiName = downloadName.replace(/[^\x20-\x7e]/g, '_');
     let bytes: Buffer;
     if (data.generated) {
       const header = data.letterhead && typeof data.letterhead === 'object' && !Array.isArray(data.letterhead) ? data.letterhead : {};
-      bytes = await makePdf(text(data, 'kind'), Array.isArray(data.lines) ? data.lines.filter((x): x is string => typeof x === 'string') : [], header, text(data, 'barcode'));
+      bytes = await makePdf(text(data, 'kind'), Array.isArray(data.lines) ? data.lines.filter((x): x is string => typeof x === 'string') : [], header, text(data, 'barcode'), text(data, 'language') === 'Hindi' ? 'Hindi' : 'English');
     } else bytes = Buffer.from(text(data, 'file'), 'base64');
     requireThat(bytes.length > 0, 'The document content is missing. Ask the originating desk.');
-    res.set({ 'Content-Type': text(data, 'mime', 'application/pdf'), 'Content-Disposition': `${req.query.download === '1' ? 'attachment' : 'inline'}; filename="${filename}${data.generated ? '.pdf' : ''}"`, 'Content-Length': String(bytes.length) });
+    res.set({ 'Content-Type': text(data, 'mime', 'application/pdf'), 'Content-Disposition': `${req.query.download === '1' ? 'attachment' : 'inline'}; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(downloadName)}`, 'Content-Length': String(bytes.length) });
     res.send(bytes);
   });
   app.get('/api/reports/:kind', (req, res) => {
@@ -331,7 +375,7 @@ export function createApplication(options: { database: string; dist?: string; te
       store.set(`faults:${actor.id}`, { next: req.body.next });
     }
     if (req.body.provider !== undefined) {
-      requireThat(['superadmin', 'manager'].includes(actor.role), 'Only demo operations or super admin changes shared provider health.');
+      requireThat(hasRole(actor, ['superadmin', 'manager']), 'Only demo operations or super admin changes shared provider health.');
       requireThat(['Success', 'Failure'].includes(req.body.provider), 'Choose a valid simulated provider state.');
       store.set('faults', { ...store.setting<Data>('faults', {}), provider: req.body.provider });
       for (const integration of store.all('integration')) store.update(integration, actor.id, { checkedAt: store.now() }, req.body.provider === 'Failure' ? 'Simulated outage' : 'Simulated healthy');
@@ -340,7 +384,7 @@ export function createApplication(options: { database: string; dist?: string; te
     res.json({ configured: true });
   });
   app.post('/api/demo/clock', (req, res) => {
-    const actor = auth.get(req).actor; requireThat(['superadmin', 'manager'].includes(actor.role), 'Only demo operations or super admin changes the shared demo clock.');
+    const actor = auth.get(req).actor; requireThat(hasRole(actor, ['superadmin', 'manager']), 'Only demo operations or super admin changes the shared demo clock.');
     requireThat(typeof req.body.minutes === 'number' && req.body.minutes >= 0 && req.body.minutes <= 60 * 24 * 31, 'Advance by 0 to 44640 minutes.');
     store.set('clockOffset', store.setting<number>('clockOffset', 0) + req.body.minutes * 60000);
     scheduledChecks(store); store.audit(actor.id, actor.role, 'demo.clock', 'clock', null, { minutes: req.body.minutes });
@@ -353,7 +397,7 @@ export function createApplication(options: { database: string; dist?: string; te
     store.transact(() => {
       for (const table of ['entities', 'entity_versions', 'users', 'sessions', 'receipts', 'settings', 'auth_challenges']) store.db.exec(`DELETE FROM ${table}`);
     });
-    seed(store);
+    seed(store); migrate(store);
     store.audit(actor.id, actor.role, 'demo.explicitReset', 'synthetic', null, { previousAuditEntries: previousAudit, priorAuditRetained: true });
     res.clearCookie('samford_actor', { path: '/' }); res.json({ reset: true, message: 'Shared synthetic records reset; prior audit retained. Local encrypted drafts were not silently deleted.' });
   });
@@ -364,6 +408,7 @@ export function createApplication(options: { database: string; dist?: string; te
   });
   app.use('/api', (_req, res) => res.status(404).json({ code: 'NOT_FOUND', message: 'API route not found.', retryable: false }));
   for (const file of ['main.js', 'main.css', 'sw.js']) app.get(`/${file}`, (_req, res) => { if (file === 'sw.js') res.set('Service-Worker-Allowed', '/'); res.sendFile(join(staticRoot, file)); });
+  for (const file of ['NotoSansDevanagari.ttf', 'OFL.txt']) app.get(`/fonts/${file}`, (_req, res) => res.sendFile(join(staticRoot, 'fonts', file)));
   app.get('/', (_req, res) => res.sendFile(join(staticRoot, 'index.html')));
   app.use((_req, res) => res.status(404).type('text').send('Page not found. Open / for the synthetic demo.'));
   app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {

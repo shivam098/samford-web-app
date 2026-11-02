@@ -1,0 +1,37 @@
+{
+  "candidateVersion": "0.2.0",
+  "liveVersion": "0.1.0",
+  "deployment": "Prepare and verify only. Do not overwrite dist, restart the live server/tunnel, or reset shared data.",
+  "verification": {
+    "command": "npm run check (SAMFORD_LIVE_PROOF=1 on the original local deployment)",
+    "apiAndMigrationCasesPassed": 31,
+    "browserCasesPassed": 38,
+    "journeysWithPrimaryApiEvidence": 87,
+    "journeysWithSubstantiveBrowserEvidence": 87,
+    "allIllustratedStatesVerified": false,
+    "requiredVariantEvidence": ["tests/completeness-api.test.ts", "tests/completeness-browser.test.ts"],
+    "remainingJourneyEvidence": "tests/journey-browser.test.ts",
+    "dataPreservationEvidence": "tests/migration.test.ts",
+    "perJourneyObservedBehavior": "docs/traceability.json"
+  },
+  "remainingGaps": [
+    "External providers, hardware, real signing and unavailable native-only security remain explicit simulations.",
+    "All 349 illustrated states and every optional branch are not claimed exhaustively verified.",
+    "Technical record keys, developer diagnostics, server validation messages and some explanatory copy remain English; no complete human linguistic review or PDF/UA certification.",
+    "No scale, regulatory, accessibility certification or production-readiness claim.",
+    "Production billing authority, ETHER migration and staff-identity ownership remain the documented demo assumptions."
+  ],
+  "requirements": [
+    { "id": "paper-rx", "classification": "PRD required", "sources": ["Staff SJ10 Rules"], "scope": "Paper prescription intake with entered doctor name, registration number and a readable attached scan; batch and dispensing safeguards apply. Not OCR or automatic prescribing." },
+    { "id": "home-layout", "classification": "PRD required", "sources": ["Doctor DJ02 steps 2-4 and Rules", "Doctor DJ02 -> Admin AJ16"], "scope": "Drag ordering, hide/unhide, row count, shortcuts and reset to hospital defaults; referrals/results and department-locked cards cannot be hidden." },
+    { "id": "handover-groups", "classification": "PRD required", "sources": ["Admin AJ10 steps 2-4 and Acceptance"], "scope": "Counts and UHIDs only for each open-work group, explicit consultant or department-queue recipient per group, unsent recovery choice, preserved author and blocked removal when incomplete." },
+    { "id": "roster-repeat", "classification": "PRD required", "sources": ["Admin AJ13 step 2"], "scope": "Repeat a weekly pattern in the monthly clinical on-call roster, excluding suspended/deactivated doctors; preview conflicts and retain change reason. Not staff duty-roster/HR management." },
+    { "id": "emergency-ot", "classification": "PRD required", "sources": ["Staff SJ20 Rules"], "scope": "Emergency can move a planned case with a reason and durable surgeon notification; atomically validate both slots and prohibit moving a case already in theatre." },
+    { "id": "payer-finance", "classification": "PRD required", "sources": ["Staff SJ07-SJ09", "Staff SJ19", "Staff SJ32-SJ33"], "scope": "Master-owned effective payer/package rates, approved amount/expiry and patient share, independent deduction ownership approval, original-mode net refunds, advances, day-end reconciliation and exports for accounts." },
+    { "id": "accounting-ledger", "classification": "Explicitly excluded", "sources": ["Staff section 2 Non-goals"], "scope": "Do not build the hospital accounting ledger, payroll, HR, live schemes, real settlement or migration. Export day-end and claim totals only." },
+    { "id": "multi-role", "classification": "PRD required", "sources": ["Staff section 3.1 final paragraph", "Staff SD02 / Admin AJ22 seam"], "scope": "A staff identity may have several staff roles and see their combined menus; server scope is the union, original user attribution remains, and changing role cannot bypass independent-person approvals. Do not create admin-as-doctor impersonation." },
+    { "id": "hindi", "classification": "PRD required", "sources": ["Doctor DJ02 step 3", "Doctor VN13", "Staff portal layout", "Staff SJ22 consent language", "Staff SN08"], "scope": "Hindi labels and printable document language for doctor and patient portal, English/Hindi consent forms, licensed embedded Unicode font. No automatic translation of authored clinical text. Full Hindi admin/operations UI is not required by these PRDs." },
+    { "id": "native-providers", "classification": "Agreed simulation boundary", "sources": ["Current web implementation request", "Doctor section 2 / VN06-VN07", "Staff SD07"], "scope": "Keep external providers and unavailable native-only device features explicitly simulated; do not claim production authentication, clinical signing, OS screenshot prevention, biometric capture or real integrations." }
+  ],
+  "browserEvidencePolicy": "Every claimed browser-covered named journey requires user-like interaction plus a resulting state/read assertion. Render and overflow checks remain a separate smoke-test dimension."
+}

@@ -5,6 +5,10 @@ import { Context } from './context.js';
 import { requireThat } from './store.js';
 import { documentCommand } from './documents.js';
 import { journeys } from '../shared/journeys.js';
+import { claimHandover } from './handover.js';
+import { homePolicy, validateHomeLayout } from './home.js';
+import { layoutFromPreferences } from '../shared/home.js';
+import { printLanguage } from '../shared/i18n.js';
 
 export function checkedMedicines(ctx: Context, patientId: string, lines: Data[], warningReason = ''): Data[] {
   requireThat(lines.length > 0 && lines.length <= 30, 'Add at least one medicine and review every line.');
@@ -40,7 +44,7 @@ export function orderTests(ctx: Context, visit: Entity | undefined, patientId: s
     const tariff = ctx.tariff(id, text(patient.data, 'payer'));
     const order = ctx.create('order', { name: text(test.data, 'name'), testId: id, loinc: text(test.data, 'loinc'), container: text(test.data, 'container'), fasting: text(test.data, 'fasting'), visitId: visit?.id ?? '', admissionId: admission?.id ?? '', packageId, amount: num(tariff.data, 'rate'), ...extra }, covered ? 'Cleared' : 'Payment pending', { patientId, doctorId, department: ctx.store.person(doctorId).department });
     if (!packageId) {
-      const bill = ctx.charge(patientId, text(test.data, 'name'), covered && text(patient.data, 'payer') === 'Ayushman' ? 0 : num(tariff.data, 'rate'), order.id, { orderId: order.id, tariffId: tariff.id }, admission?.id);
+      const bill = ctx.charge(patientId, text(test.data, 'name'), num(tariff.data, 'rate'), order.id, { orderId: order.id, tariffId: tariff.id }, admission?.id);
       ctx.update(order, { billId: bill.id });
     }
     return ctx.get(order.id);
@@ -49,6 +53,8 @@ export function orderTests(ctx: Context, visit: Entity | undefined, patientId: s
 export function clinicalCommand(name: string, ctx: Context): boolean {
   const p = ctx.p;
   switch (name) {
+    case 'handover.claim':
+      claimHandover(ctx); break;
     case 'profile.correction':
       ctx.create('correction', { name: 'Profile correction', reason: ctx.t('reason') }, 'Requested', { doctorId: ctx.actor.id, department: ctx.actor.department }); break;
     case 'preferences.save': {
@@ -59,9 +65,22 @@ export function clinicalCommand(name: string, ctx: Context): boolean {
       requireThat(!hidden.includes('referrals') && !hidden.includes('results'), 'New referrals and Results to review cannot be hidden.');
       requireThat(ctx.t('shortcuts').split(',').filter(Boolean).length <= 6, 'Pin no more than six shortcuts.');
       requireThat(ctx.t('shortcuts').split(',').map(id => id.trim()).filter(Boolean).every(id => journeys.some(journey => journey.id === id && journey.roles.includes(ctx.actor.role))), 'Choose shortcut journey IDs available to your role.');
-      ctx.actor.preferences = { ...ctx.actor.preferences, ...p };
+      const policy = homePolicy(ctx.store, ctx.actor.department);
+      const layout = p.layout && typeof p.layout === 'object' && !Array.isArray(p.layout) ? p.layout : layoutFromPreferences(p);
+      const normalized = validateHomeLayout(layout, strings(policy, 'lockedCards'));
+      const preferences = { ...p }; delete preferences.layout;
+      ctx.actor.preferences = { ...ctx.actor.preferences, ...preferences, ...normalized };
       ctx.store.savePerson(ctx.actor); ctx.result = { saved: true }; break;
     }
+    case 'preferences.resetHome': {
+      const policy = homePolicy(ctx.store, ctx.actor.department); const layout = policy.layout;
+      requireThat(layout && typeof layout === 'object' && !Array.isArray(layout), 'Hospital defaults are unavailable. Contact administration.');
+      ctx.actor.preferences = { ...ctx.actor.preferences, ...validateHomeLayout(layout, strings(policy, 'lockedCards')) };
+      ctx.store.savePerson(ctx.actor); ctx.result = { reset: true, hospitalDefaultVersion: num(policy, 'version') }; break;
+    }
+    case 'preferences.language':
+      ctx.actor.preferences = { ...ctx.actor.preferences, language: ctx.t('language'), ...(ctx.t('printLanguage') ? { printLanguage: ctx.t('printLanguage') } : {}) };
+      ctx.store.savePerson(ctx.actor); ctx.result = { language: ctx.t('language'), authoredContentTranslated: false }; break;
     case 'presence.set': {
       const e = ctx.all('presence').find(e => e.doctorId === ctx.actor.id);
       const reset = e ? text(e.data, 'systemReset') : '';
@@ -210,7 +229,7 @@ export function clinicalCommand(name: string, ctx: Context): boolean {
           requireThat(receiver.role === 'doctor' && receiver.state === 'Active' && receiver.department === dept.id && receiver.id !== ctx.actor.id, 'Choose another active consultant in the selected department.');
         }
       } else requireThat(ctx.t('hospital').length > 2, 'Enter the external hospital for the referral letter.');
-      ctx.create('referral', { ...p, name: `${ctx.t('urgency')} ${ctx.t('kind')} referral`, visitId: visit.id, receiverId, sentAt: ctx.now(), publicText: `New referral. ${ctx.t('urgency')}. Unlock to view.`, escalation: [] }, ctx.t('kind') === 'External' ? 'External letter ready' : 'Sent', { patientId: visit.patientId, doctorId: visit.doctorId, department: dept.id }); break;
+      ctx.create('referral', { ...p, name: `${ctx.t('urgency')} ${ctx.t('kind')} referral`, visitId: visit.id, receiverId, senderId: ctx.actor.id, sentAt: ctx.now(), publicText: `New referral. ${ctx.t('urgency')}. Unlock to view.`, escalation: [] }, ctx.t('kind') === 'External' ? 'External letter ready' : 'Sent', { patientId: visit.patientId, doctorId: visit.doctorId, department: dept.id }); break;
     }
     case 'referral.see':
     case 'referral.answer': {
@@ -226,8 +245,14 @@ export function clinicalCommand(name: string, ctx: Context): boolean {
         ctx.update(referral, { receiverId: ctx.actor.id, reply: ctx.t('reply'), answeredAt: ctx.now() }, decision === 'Accept' ? 'Accepted' : 'Declined');
         if (decision === 'Accept') {
           const source = ctx.get(text(referral.data, 'visitId'), 'visit');
-          const token = Math.max(0, ...ctx.all('visit').filter(v => v.doctorId === ctx.actor.id && text(v.data, 'date') === istDate(ctx.now())).map(v => num(v.data, 'token'))) + 1;
-          ctx.create('visit', { ...source.data, name: 'Accepted referral visit', number: `OPD-REF-${randomUUID().slice(0, 8)}`, date: istDate(ctx.now()), token, calls: 0, priority: text(referral.data, 'urgency') !== 'Routine', referralId: referral.id, room: text(ctx.get(ctx.actor.id).data, 'room') }, 'Waiting', { patientId: referral.patientId, doctorId: ctx.actor.id, department: ctx.actor.department });
+          if (source.doctorId === ctx.actor.id && !['Done', 'Cancelled'].includes(source.status) && text(source.data, 'date') === istDate(ctx.now())) {
+            ctx.update(source, { referralId: referral.id, priority: text(referral.data, 'urgency') !== 'Routine' });
+            ctx.update(ctx.get(referral.id), { receivedVisitId: source.id });
+          } else {
+            const token = Math.max(0, ...ctx.all('visit').filter(v => v.doctorId === ctx.actor.id && text(v.data, 'date') === istDate(ctx.now())).map(v => num(v.data, 'token'))) + 1;
+            const received = ctx.create('visit', { ...source.data, name: 'Accepted referral visit', number: `OPD-REF-${randomUUID().slice(0, 8)}`, date: istDate(ctx.now()), token, calls: 0, priority: text(referral.data, 'urgency') !== 'Routine', referralId: referral.id, room: text(ctx.get(ctx.actor.id).data, 'room') }, 'Waiting', { patientId: referral.patientId, doctorId: ctx.actor.id, department: ctx.actor.department });
+            ctx.update(ctx.get(referral.id), { receivedVisitId: received.id });
+          }
         }
       } break;
     }
@@ -279,7 +304,7 @@ export function clinicalCommand(name: string, ctx: Context): boolean {
     }
     case 'certificate.issue': {
       const patient = ctx.patient();
-      ctx.create('certificate', { ...p, number: `CERT-${String(ctx.all('certificate').length + 1).padStart(6, '0')}`, name: ctx.t('title'), registration: text(ctx.get(ctx.actor.id).data, 'registration'), author: ctx.actor.name }, 'Issued', { patientId: patient.id, doctorId: ctx.actor.id }); break;
+      ctx.create('certificate', { ...p, language: printLanguage(ctx.actor), number: `CERT-${String(ctx.all('certificate').length + 1).padStart(6, '0')}`, name: ctx.t('title'), registration: text(ctx.get(ctx.actor.id).data, 'registration'), author: ctx.actor.name }, 'Issued', { patientId: patient.id, doctorId: ctx.actor.id }); break;
     }
     case 'visit.done': {
       const visit = ctx.clinical(ctx.targetOf('visit'));
@@ -340,7 +365,8 @@ export function clinicalCommand(name: string, ctx: Context): boolean {
           return { ...line, itemId: text(question.data, 'proposedItemId'), reviewed: true };
         });
         const checked = checkedMedicines(ctx, rx.patientId!, lines, ctx.t('reply'));
-        ctx.update(rx, { lines: checked, rxVersion: num(rx.data, 'rxVersion') + 1, amendmentReason: ctx.t('reply') }, 'Sent');
+        ctx.update(rx, { lines: checked, rxVersion: num(rx.data, 'rxVersion') + 1, amendmentReason: ctx.t('reply'), authorId: ctx.actor.id, approverId: ctx.actor.id,
+          source: text(rx.data, 'source') === 'Paper' ? 'App amendment of paper' : text(rx.data, 'source', 'App') }, 'Sent');
       }
       ctx.update(question, { decision: ctx.t('decision'), reply: ctx.t('reply'), answeredAt: ctx.now(), answeredBy: ctx.actor.id }, 'Answered'); break;
     }

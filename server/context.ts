@@ -1,11 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import { doctorRoles, adminRoles, text, num, bool, strings, istDate, type Actor, type Data, type Entity, type CommandRequest, type Snapshot } from '../shared/model.js';
+import { doctorRoles, adminRoles, actorRoles, hasRole, text, num, bool, strings, istDate, type Actor, type Data, type Entity, type CommandRequest, type Snapshot } from '../shared/model.js';
 import { Store, requireThat } from './store.js';
 
 const staffRead: Record<string, string[]> = {
   desk: ['patient', 'visit', 'presence', 'availability', 'followup', 'board', 'document', 'bill', 'payment', 'admission', 'bed', 'certificate', 'consent', 'packageRun', 'trip', 'vehicle', 'enquiry', 'feedback', 'message', 'abha', 'facility', 'counterClose', 'refund'],
-  cashier: ['patient', 'visit', 'bill', 'payment', 'claim', 'refund', 'counterClose', 'admission', 'discharge', 'document', 'packageRun', 'facility', 'approval', 'question'],
-  pharmacist: ['patient', 'rx', 'question', 'batch', 'dispense', 'return', 'wardRequest', 'wardOrder', 'admission', 'bill', 'payment', 'requisition', 'stockTransfer', 'refund', 'counterClose', 'facility'],
+  cashier: ['patient', 'visit', 'bill', 'payment', 'claim', 'refund', 'return', 'counterClose', 'admission', 'discharge', 'document', 'packageRun', 'facility', 'approval', 'question'],
+  pharmacist: ['patient', 'rx', 'question', 'batch', 'dispense', 'return', 'wardRequest', 'wardOrder', 'admission', 'bill', 'payment', 'document', 'requisition', 'stockTransfer', 'refund', 'counterClose', 'facility'],
   store: ['batch', 'requisition', 'purchase', 'grn', 'stockTransfer', 'vendor', 'asset', 'writeoff', 'stockCount', 'facility', 'approval'],
   nurse: ['patient', 'visit', 'admission', 'bed', 'round', 'wardOrder', 'administration', 'nursing', 'vital', 'wardRequest', 'discharge', 'document', 'consent', 'register', 'certificate', 'daycare', 'operation', 'diet', 'facility', 'trip'],
   lab: ['patient', 'order', 'sample', 'result', 'review', 'question', 'facility', 'document'],
@@ -14,9 +14,9 @@ const staffRead: Record<string, string[]> = {
   services: ['bed', 'diet', 'trip', 'vehicle', 'mortuary', 'cabinet', 'asset', 'facility'],
   manager: ['patient', 'visit', 'availability', 'followup', 'presence', 'board', 'document', 'bill', 'payment', 'claim', 'refund', 'counterClose', 'requisition', 'purchase', 'grn', 'stockTransfer', 'vendor', 'asset', 'batch', 'writeoff', 'stockCount', 'itemPrice', 'catalogRequest', 'admission', 'bed', 'discharge', 'daycare', 'register', 'consent', 'certificate', 'packageRun', 'trip', 'vehicle', 'diet', 'facility', 'coding', 'hospitalDocument', 'enquiry', 'feedback', 'message', 'approval', 'job', 'jobRun', 'nursing', 'vital', 'administration'],
 };
-const commonCatalog = ['department', 'room', 'session', 'holiday', 'roster', 'test', 'item', 'tariff', 'payer', 'package', 'letterhead', 'feature'];
-const doctorRead = ['patient', 'visit', 'presence', 'availability', 'history', 'allergy', 'document', 'vital', 'note', 'rx', 'order', 'sample', 'result', 'review', 'followup', 'referral', 'admission', 'bed', 'operation', 'round', 'wardOrder', 'administration', 'nursing', 'discharge', 'question', 'video', 'abha', 'help', 'article', 'set', 'template', 'signin', 'message', 'certificate', 'coding', 'correction', 'jobRun', 'announcement'];
-const adminRead = ['account', 'access', 'correction', 'device', 'department', 'room', 'session', 'holiday', 'roster', 'jobRun', 'set', 'template', 'letterhead', 'routing', 'wording', 'feature', 'announcement', 'help', 'article', 'roleApproval', 'import', 'integration', 'test', 'item'];
+const commonCatalog = ['department', 'room', 'session', 'holiday', 'roster', 'test', 'item', 'tariff', 'payer', 'package', 'packageRate', 'letterhead', 'feature', 'homeDefault'];
+const doctorRead = ['patient', 'visit', 'presence', 'availability', 'history', 'allergy', 'document', 'vital', 'note', 'rx', 'order', 'sample', 'result', 'review', 'followup', 'referral', 'admission', 'bed', 'operation', 'round', 'wardOrder', 'administration', 'nursing', 'discharge', 'question', 'video', 'abha', 'help', 'article', 'set', 'template', 'signin', 'message', 'certificate', 'coding', 'correction', 'jobRun', 'announcement', 'handover'];
+const adminRead = ['account', 'access', 'correction', 'device', 'department', 'room', 'session', 'holiday', 'roster', 'jobRun', 'set', 'template', 'letterhead', 'routing', 'wording', 'feature', 'announcement', 'help', 'article', 'roleApproval', 'import', 'integration', 'test', 'item', 'handover', 'homeDefault'];
 export function covers(actor: Actor, doctorId?: string) {
   return actor.id === doctorId || (actor.role === 'resident' && text(actor.preferences, 'coverDoctor') === doctorId);
 }
@@ -27,11 +27,11 @@ export function slotsFor(store: Store, doctorId: string, date: string, actor: Ac
   const clock = (minutes: number) => `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
   const holiday = store.all('holiday').some(e => text(e.data, 'date') === date);
   const availability = store.all('availability').filter(e => e.doctorId === doctorId && e.status === 'Approved' && text(e.data, 'date') <= date && text(e.data, 'endDate') >= date);
-  const visits = store.all('visit').filter(e => e.id !== excludeVisitId && e.doctorId === doctorId && text(e.data, 'date') === date && e.status !== 'Cancelled');
+  const visits = store.all('visit').filter(e => e.id !== excludeVisitId && e.doctorId === doctorId && text(e.data, 'date') === date && e.status !== 'Cancelled' && !bool(e.data, 'needsMove'));
   const result: Data[] = [];
   for (const session of store.all('session').filter(e => e.doctorId === doctorId && text(e.data, 'date') === date)) {
     const start = minutes(text(session.data, 'start')); const end = minutes(text(session.data, 'end')); const size = num(session.data, 'slotMinutes', 10);
-    const max = end + (['desk', 'manager'].includes(actor.role) ? size * 3 : 0);
+    const max = end + (hasRole(actor, ['desk', 'manager']) ? size * 3 : 0);
     for (let at = start; at < max; at += size) {
       const time = clock(at); const extra = at >= end;
       const change = availability.find(e => text(e.data, 'kind') === 'Leave' || (text(e.data, 'kind') === 'Late start' && time < text(e.data, 'start')) || (text(e.data, 'kind') === 'Early finish' && time >= text(e.data, 'end')));
@@ -49,11 +49,15 @@ export function patientScope(store: Store, actor: Actor): Set<string> {
   if (actor.role === 'patient') return new Set(actor.patientIds);
   if (!doctorRoles.includes(actor.role)) return new Set();
   return new Set(store.all().filter(e =>
-    ((['visit', 'admission'].includes(e.type) && covers(actor, e.doctorId)) ||
+    ((['visit', 'admission', 'note', 'rx', 'order', 'result', 'question', 'discharge', 'wardOrder', 'followup'].includes(e.type) && covers(actor, e.doctorId)) ||
+     (e.type === 'operation' && text(e.data, 'surgeonId') === actor.id) || (bool(e.data, 'handoverQueue') && text(e.data, 'handoverDepartment') === actor.department) ||
      (e.type === 'referral' && (covers(actor, e.doctorId) || text(e.data, 'receiverId') === actor.id || (!text(e.data, 'receiverId') && e.department === actor.department))))
   ).map(e => e.patientId).filter((x): x is string => Boolean(x)));
 }
 export function visible(store: Store, actor: Actor, entity: Entity): boolean {
+  return actorRoles(actor).some(role => visibleRole(store, { ...actor, role, roles: [role] }, entity));
+}
+function visibleRole(store: Store, actor: Actor, entity: Entity): boolean {
   if (actor.role === 'auditor') return false;
   if (adminRoles.includes(actor.role)) {
     if (!adminRead.includes(entity.type)) return false;
@@ -80,6 +84,7 @@ export function visible(store: Store, actor: Actor, entity: Entity): boolean {
   }
   if (doctorRoles.includes(actor.role)) {
     if (!doctorRead.includes(entity.type)) return false;
+    if (entity.type === 'handover') return text(entity.data, 'receiverId') === actor.id || (entity.status === 'Awaiting claim' && entity.department === actor.department);
     if (entity.type === 'referral') return covers(actor, entity.doctorId) || text(entity.data, 'receiverId') === actor.id || (!text(entity.data, 'receiverId') && entity.department === actor.department);
     if (entity.type === 'set') return text(entity.data, 'scope') === 'Personal' ? entity.createdBy === actor.id : entity.department === actor.department;
     if (entity.type === 'template') return entity.department === actor.department;
@@ -92,6 +97,7 @@ export function visible(store: Store, actor: Actor, entity: Entity): boolean {
   }
   if (entity.type === 'facility') return actor.role === 'services' || actor.role === 'manager' || entity.createdBy === actor.id;
   if (entity.type === 'document' && actor.role === 'lab') return ['Result', 'Sample label', 'Dispatch manifest'].includes(text(entity.data, 'kind'));
+  if (entity.type === 'document' && actor.role === 'pharmacist') return ['Bill', 'Receipt', 'Credit note', 'Paper prescription'].includes(text(entity.data, 'kind'));
   if (entity.type === 'question' && actor.role !== 'manager') return (actor.role === 'pharmacist' && text(entity.data, 'kind') === 'Pharmacy') || (actor.role === 'lab' && text(entity.data, 'kind') === 'Lab') || (actor.role === 'mrd' && text(entity.data, 'kind') === 'Coding') || (actor.role === 'cashier' && text(entity.data, 'kind') === 'Insurance');
   return (staffRead[actor.role] ?? []).includes(entity.type);
 }
@@ -138,7 +144,7 @@ export class Context {
     return p;
   }
   clinical(entity: Entity, allowClosed = false) {
-    requireThat(doctorRoles.includes(this.actor.role) && covers(this.actor, entity.doctorId), 'Only the treating or covering doctor can change this work.', 'ACCESS_DENIED');
+    requireThat(doctorRoles.includes(this.actor.role) && (covers(this.actor, entity.doctorId) || (entity.type === 'operation' && text(entity.data, 'surgeonId') === this.actor.id)), 'Only the treating, assigned surgeon or covering doctor can change this work.', 'ACCESS_DENIED');
     if (!allowClosed && entity.type === 'visit') requireThat(['Waiting', 'Called', 'In consultation', 'Held'].includes(entity.status), 'The visit is closed or not checked in. Open an active visit first.');
     if (!allowClosed && entity.type === 'admission') requireThat(entity.status === 'Admitted', 'This admission is not active.');
     return entity;
@@ -180,9 +186,8 @@ export class Context {
   tariff(code: string, payer = 'Self') {
     const today = istDate(this.now());
     const eligible = this.all('tariff').filter(e => text(e.data, 'code') === code && text(e.data, 'effective') <= today && e.status === 'Active');
-    const byPayer = eligible.filter(e => text(e.data, 'payer') === payer);
-    const list = byPayer.length ? byPayer : eligible.filter(e => text(e.data, 'payer') === 'Self');
-    requireThat(list.length, 'No active tariff is available. Ask the billing master owner.');
+    const list = eligible.filter(e => text(e.data, 'payer') === payer);
+    requireThat(list.length, `No active ${payer} tariff is available for this service. Ask the billing master owner; a price was not guessed.`);
     return list.sort((x, y) => text(y.data, 'effective').localeCompare(text(x.data, 'effective')))[0];
   }
   approval(kind: string, targetId: string, data: Data, reason: string, amount = 0) {
@@ -214,13 +219,15 @@ export function notifications(store: Store, actor: Actor, entities: Entity[]) {
     for (const e of entities) {
       if (e.type === 'referral' && (text(e.data, 'receiverId') === actor.id || (!text(e.data, 'receiverId') && e.department === actor.department)) && ['Sent', 'Seen'].includes(e.status)) {
         const wording = store.all('wording').find(e => text(e.data, 'kind') === 'Referral');
-        const content = (wording ? text(wording.data, 'unlocked') : '{doctor} referred {patient} to you').replaceAll('{doctor}', store.person(e.doctorId!).name).replaceAll('{patient}', text(store.get(e.patientId!).data, 'name'));
+        const content = (wording ? text(wording.data, 'unlocked') : '{doctor} referred {patient} to you').replaceAll('{doctor}', store.person(text(e.data, 'senderId') || e.createdBy).name).replaceAll('{patient}', text(store.get(e.patientId!).data, 'name'));
         output.push({ id: e.id, text: content, href: 'DJ21', critical: text(e.data, 'urgency') !== 'Routine' });
       }
       if (e.type === 'result' && e.status === 'Released' && covers(actor, e.doctorId) && !store.all('review').some(r => text(r.data, 'resultId') === e.id && num(r.data, 'resultVersion') === num(e.data, 'reportVersion', 1))) output.push({ id: e.id, text: `${text(e.data, 'flag')} result needs review`, href: 'DJ20', critical: text(e.data, 'flag') === 'Critical' });
       if (e.type === 'question' && e.status === 'Open' && covers(actor, e.doctorId)) output.push({ id: e.id, text: `${text(e.data, 'kind')} question waiting`, href: 'DJ22', critical: false });
       if (e.type === 'followup' && ['Booked', 'Declined'].includes(e.status) && !text(e.data, 'responseSeenAt') && covers(actor, e.doctorId)) output.push({ id: e.id, text: `Front desk ${e.status.toLowerCase()} a follow-up request`, href: 'DJ12', critical: false });
       if (e.type === 'vital' && num(e.data, 'spo2', 100) < 90 && !bool(e.data, 'alertReviewed') && covers(actor, e.doctorId)) output.push({ id: e.id, text: 'Ward reading needs attention', href: 'DJ18', critical: true });
+      if (e.type === 'handover' && e.status === 'Awaiting claim' && e.department === actor.department) output.push({ id: e.id, text: 'Department handover needs a receiving consultant', href: 'DJ03', critical: false });
+      if (e.type === 'operation' && e.status === 'Offered' && (covers(actor, e.doctorId) || text(e.data, 'surgeonId') === actor.id)) output.push({ id: e.id, text: text(e.data, 'slotChangeReason') ? `OT slot changed: ${text(e.data, 'slotChangeReason')}` : 'OT coordinator offered an operation slot', href: 'DJ14', critical: text(e.data, 'urgency') === 'Emergency' });
     }
   }
   return output;

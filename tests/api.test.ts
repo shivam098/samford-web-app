@@ -516,7 +516,7 @@ test('admission/ward/OT/discharge, nursing, day care, clinical registers and ins
     const certificate = await doctor.first('certificate.issue', { patientId: 'patient-b', title: 'Sample fitness letter', content: 'Synthetic certificate only.', reviewed: true }, undefined, 'certificate');
     const print = await desk.cmd('certificate.print', {}, certificate.id); assert.ok(print.data?.documentId);
     verified(['SJ20', 'SJ22'], 'Overlapping theatre/surgeon booking is refused; consent and pre-op checks gate entry; theatre stages and charges persist; vaccine sets next due; desk prints only a doctor-issued serial certificate.');
-    const claim = await cashier.first('claim.create', { patientId: 'patient-b', admissionId: admission.id, payer: 'Ayushman', policy: 'SAMPLE-CARD', amount: 10000, cover: 50000, packageId: 'SAMPLE-PACKAGE' }, undefined, 'claim');
+    const claim = await cashier.first('claim.create', { patientId: 'patient-b', admissionId: admission.id, payer: 'Ayushman', policy: 'SAMPLE-CARD', amount: 10000, cover: 50000, packageId: 'scheme-ayushman-admission' }, undefined, 'claim');
     await cashier.cmd('claim.send', { documents: 'Synthetic plan and admission reference' }, claim.id);
     await cashier.cmd('claim.response', { decision: 'Query raised', response: 'Need synthetic document' }, claim.id);
     await cashier.cmd('claim.send', { documents: 'Synthetic query response' }, claim.id);

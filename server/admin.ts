@@ -1,8 +1,11 @@
 import { randomBytes, randomUUID } from 'node:crypto';
-import { type Actor, type Data, type Role, doctorRoles, adminRoles, text, num, bool, rows, strings, istDate, roles } from '../shared/model.js';
+import { type Actor, type Data, type Role, doctorRoles, adminRoles, staffRoles, actorRoles, text, num, bool, rows, strings, istDate, roles } from '../shared/model.js';
 import { credential, Auth } from './auth.js';
 import { Context } from './context.js';
-import { Store, requireThat } from './store.js';
+import { Store, DomainError, requireThat } from './store.js';
+import { handoverPlan, applyHandover } from './handover.js';
+import { repeatedRosterDates, homeCards } from '../shared/home.js';
+import { validateHomeLayout } from './home.js';
 
 export function parseCsv(value: string): Data[] {
   const records: string[][] = []; let record: string[] = []; let field = ''; let quoted = false;
@@ -40,29 +43,23 @@ function invite(ctx: Context, data: Data): { id: string; login: string; temporar
   requireThat(!error, error);
   const password = `Demo-${randomBytes(12).toString('base64url')}!`;
   const role = text(data, 'role') as Role;
+  const assigned = strings(data, 'roles');
+  requireThat(!assigned.length || (staffRoles.includes(role) && assigned.every(value => staffRoles.includes(value as Role))), 'Multiple roles are supported only within staff roles. Do not combine clinical or administrative identities.');
   const id = `actor-${randomUUID()}`;
   const actor: Actor = {
-    id, name: text(data, 'name'), role, department: text(data, 'departmentId'), state: 'Invited', login: text(data, 'login'),
+    id, name: text(data, 'name'), role, roles: [...new Set([role, ...assigned as Role[]])], department: text(data, 'departmentId'), state: 'Invited', login: text(data, 'login'),
     staffId: text(data, 'staffId'), mobile: text(data, 'mobile'), patientIds: [], verifier: bool(data, 'verifier'),
     profileConfirmed: false, temporary: true, counter: 'OPD 1', appVersion: 1, preferences: {}
   };
   const cred = credential(password, true, ctx.now());
   cred.expires = new Date(new Date(ctx.now()).getTime() + num(ctx.store.setting<Data>('policy', {}), 'temporaryHours', 24) * 3600000).toISOString();
   ctx.store.savePerson(actor, cred);
-  ctx.create('account', { ...data, name: actor.name, invitedAt: ctx.now(), expires: cred.expires }, 'Invited', { id, department: actor.department });
+  ctx.create('account', { ...data, roles: actor.roles!, name: actor.name, invitedAt: ctx.now(), expires: cred.expires }, 'Invited', { id, department: actor.department });
   return { id, login: actor.login, temporaryPassword: password };
-}
-function transfer(ctx: Context, actorId: string, receiverId: string) {
-  const receiver = ctx.store.person(receiverId);
-  requireThat(receiver.role === 'doctor' && receiver.state === 'Active' && receiver.id !== actorId, 'Choose a different active consultant for the handover.');
-  for (const item of ctx.store.all().filter(e => e.doctorId === actorId && !['Done', 'Cancelled', 'Discharged', 'Closed', 'Stopped', 'Reviewed', 'Dispensed'].includes(e.status) && ['visit', 'admission', 'question', 'referral', 'followup', 'wardOrder', 'discharge', 'note', 'rx', 'order', 'result'].includes(e.type))) {
-    ctx.update({ ...item, doctorId: receiver.id }, { handedOverFrom: actorId, handedOverAt: ctx.now(), handoverReason: ctx.t('reason') });
-  }
-  for (const referral of ctx.all('referral').filter(e => text(e.data, 'receiverId') === actorId && ['Sent', 'Seen'].includes(e.status))) ctx.update(referral, { receiverId, handoverReason: ctx.t('reason') });
 }
 function saveActor(ctx: Context, actor: Actor, data: Data = {}) {
   ctx.store.savePerson(actor);
-  ctx.update(ctx.get(actor.id, 'account'), { name: actor.name, role: actor.role, departmentId: actor.department, ...data }, actor.state);
+  ctx.update(ctx.get(actor.id, 'account'), { name: actor.name, role: actor.role, roles: actorRoles(actor), departmentId: actor.department, ...data }, actor.state);
 }
 export function presenceReset(store: Store, date: string, late: boolean) {
   if (store.all('jobRun').some(e => text(e.data, 'job') === '22:00 presence reset' && text(e.data, 'date') === date && e.status === 'Success')) return { reset: 0, skipped: 0, replayed: true };
@@ -98,15 +95,19 @@ export function scheduledChecks(store: Store) {
       }
       if (account.status === 'Active' && !bool(account.data, 'scheduleBlocked') && text(account.data, 'deactivationAt') && text(account.data, 'deactivationAt') <= now) {
         const actor = store.person(account.id);
-        const receiver = store.person(text(account.data, 'exitReceiver'));
-        if (receiver.state !== 'Active' || receiver.role !== 'doctor') {
-          store.update(account, 'System', { scheduleBlocked: true, scheduleError: 'The handover receiver is no longer active. Choose a new receiver before removing access.' });
-          store.create('jobRun', { name: 'Scheduled deactivation blocked', job: 'Scheduled account exit', accountId: actor.id, reason: 'Handover receiver unavailable' }, 'System', { status: 'Failure' });
-          store.audit('System', 'system', 'account.scheduledExitBlocked', actor.id, null, { nextAction: 'Choose a new active receiving consultant.' }, '', 'Rejected');
+        const context = new Context(store, { ...store.person('super'), id: 'System', name: 'System' }, { operationId: `scheduled-${account.id}`, actorId: 'System', createdAt: now, deviceId: 'scheduler',
+          payload: { receiverId: text(account.data, 'exitReceiver'), handovers: rows(account.data, 'exitHandovers'), confirmName: actor.name, reason: text(account.data, 'exitReason'), unsentPlan: text(account.data, 'exitUnsentPlan'), unsentAction: text(account.data, 'exitUnsentAction'), confirmed: true } }, account);
+        try {
+          handoverPlan(context, actor, true);
+          const unsent = store.all('device').filter(device => text(device.data, 'actorId') === actor.id).reduce((sum, device) => sum + num(device.data, 'unsent'), 0);
+          requireThat(!unsent || context.t('unsentAction') === 'Accept unsent loss with reason', 'Unsent work still needs sync or explicit accepted-loss approval.');
+        } catch (error) {
+          if (!(error instanceof DomainError)) throw error;
+          store.update(account, 'System', { scheduleBlocked: true, scheduleError: error.message });
+          store.create('jobRun', { name: 'Scheduled deactivation blocked', job: 'Scheduled account exit', accountId: actor.id, reason: error.message }, 'System', { status: 'Failure' });
+          store.audit('System', 'system', 'account.scheduledExitBlocked', actor.id, null, { nextAction: 'Review group recipients and unsent recovery before removing access.' }, '', 'Rejected');
           continue;
         }
-        const context = new Context(store, { ...store.person('super'), id: 'System', name: 'System' }, { operationId: `scheduled-${account.id}`, actorId: 'System', createdAt: now, deviceId: 'scheduler',
-          payload: { receiverId: text(account.data, 'exitReceiver'), confirmName: actor.name, reason: text(account.data, 'exitReason'), unsentPlan: text(account.data, 'exitUnsentPlan'), confirmed: true } }, account);
         adminCommand('account.deactivate', context);
         store.audit('System', 'system', 'account.scheduledDeactivate', actor.id, { state: 'Active' }, { state: 'Deactivated', originalRequester: text(account.data, 'exitRequestedBy') });
       }
@@ -232,7 +233,7 @@ export function adminCommand(name: string, ctx: Context): boolean {
       requireThat(doctorRoles.includes(actor.role), 'This page edits clinical profiles. Use admin/staff identities for other accounts.');
       if (actor.department !== ctx.t('departmentId')) {
         const open = ctx.store.all().some(e => e.doctorId === actor.id && ['visit', 'admission', 'question', 'referral'].includes(e.type) && !['Done', 'Cancelled', 'Discharged', 'Answered', 'Declined'].includes(e.status));
-        if (open) { requireThat(ctx.t('receiverId'), 'Choose a handover receiver for open work before transferring the department.'); transfer(ctx, actor.id, ctx.t('receiverId')); }
+        if (open) applyHandover(ctx, actor, handoverPlan(ctx, actor, true));
       }
       actor.name = ctx.t('name'); actor.department = ctx.t('departmentId');
       saveActor(ctx, actor, p); break;
@@ -241,6 +242,7 @@ export function adminCommand(name: string, ctx: Context): boolean {
       const actor = ctx.store.person(ctx.targetOf('account').id);
       requireThat(doctorRoles.includes(actor.role) && actor.id !== ctx.actor.id, 'This suspension flow is for other clinical accounts.');
       if (ctx.t('endDate')) requireThat(ctx.t('endDate') > istDate(ctx.now()), 'Automatic return must be in the future.');
+      if (rows(ctx.p, 'handovers').length) applyHandover(ctx, actor, handoverPlan(ctx, actor, false));
       actor.state = 'Suspended'; saveActor(ctx, actor, p); new Auth(ctx.store).revokeActor(actor.id); break;
     }
     case 'account.reactivate': {
@@ -252,17 +254,22 @@ export function adminCommand(name: string, ctx: Context): boolean {
       const actor = ctx.store.person(ctx.targetOf('account').id);
       requireThat(doctorRoles.includes(actor.role), 'Use administrative access removal for a non-clinical account.');
       requireThat(ctx.t('confirmName') === actor.name, 'Type the account name exactly to confirm.');
-      transfer(ctx, actor.id, ctx.t('receiverId'));
-      actor.state = 'Deactivated'; saveActor(ctx, actor, { reason: ctx.t('reason'), unsentPlan: ctx.t('unsentPlan'), deactivatedAt: ctx.now() });
+      const plan = handoverPlan(ctx, actor, true);
+      const devices = ctx.all('device').filter(device => text(device.data, 'actorId') === actor.id);
+      const unsent = devices.reduce((sum, device) => sum + num(device.data, 'unsent'), 0);
+      requireThat(!unsent || ctx.t('unsentAction') === 'Accept unsent loss with reason', 'Unsent items remain. Wait for sync, or explicitly accept unsent loss and record why.');
+      applyHandover(ctx, actor, plan);
+      actor.state = 'Deactivated'; saveActor(ctx, actor, { reason: ctx.t('reason'), unsentPlan: ctx.t('unsentPlan'), unsentDecision: ctx.t('unsentAction'), reportedUnsentAtExit: unsent, deactivatedAt: ctx.now() });
+      for (const device of devices) ctx.update(device, { reason: 'Account deactivated', exitUnsentPlan: ctx.t('unsentPlan'), reportedUnsentAtExit: num(device.data, 'unsent') }, 'Signed out');
       new Auth(ctx.store).revokeActor(actor.id); break;
     }
     case 'account.scheduleExit': {
-      const account = ctx.targetOf('account'); const actor = ctx.store.person(account.id); const receiver = ctx.store.person(ctx.t('receiverId'));
+      const account = ctx.targetOf('account'); const actor = ctx.store.person(account.id);
       requireThat(doctorRoles.includes(actor.role) && ctx.t('confirmName') === actor.name, 'Choose a clinical account and type its name exactly.');
-      requireThat(receiver.role === 'doctor' && receiver.state === 'Active' && receiver.id !== actor.id, 'Choose a different active receiving consultant.');
+      const plan = handoverPlan(ctx, actor, true);
       const deactivationAt = new Date(`${ctx.t('lastWorkingDay')}T23:59:00+05:30`).toISOString();
       requireThat(deactivationAt > ctx.now(), 'The planned exit time must be in the future.');
-      ctx.update(account, { deactivationAt, exitReceiver: receiver.id, exitReason: ctx.t('reason'), exitUnsentPlan: ctx.t('unsentPlan'), exitRequestedBy: ctx.actor.id, scheduleBlocked: false, scheduleError: '' }); break;
+      ctx.update(account, { deactivationAt, exitReceiver: ctx.t('receiverId'), exitHandovers: plan, exitReason: ctx.t('reason'), exitUnsentPlan: ctx.t('unsentPlan'), exitUnsentAction: ctx.t('unsentAction'), exitRequestedBy: ctx.actor.id, scheduleBlocked: false, scheduleError: '' }); break;
     }
     case 'device.signout':
     case 'device.wipe': {
@@ -292,7 +299,7 @@ export function adminCommand(name: string, ctx: Context): boolean {
       const actor = ctx.store.person(ctx.t('doctorId'));
       requireThat(actor.role === 'doctor' && actor.state === 'Active' && actor.department === ctx.t('departmentId'), 'Choose an active consultant from this department.');
       const prior = ctx.all('roster').find(e => e.department === ctx.t('departmentId') && text(e.data, 'date') === ctx.t('date') && text(e.data, 'shift') === ctx.t('shift'));
-      if (prior) ctx.update(prior, { ...p, name: `${ctx.t('date')} ${ctx.t('shift')} - ${actor.name}` }, 'Published');
+      if (prior) ctx.update({ ...prior, doctorId: actor.id }, { ...p, name: `${ctx.t('date')} ${ctx.t('shift')} - ${actor.name}` }, 'Published');
       else ctx.create('roster', { ...p, name: `${ctx.t('date')} ${ctx.t('shift')} - ${actor.name}` }, 'Published', { doctorId: actor.id, department: actor.department }); break;
     }
     case 'roster.import': {
@@ -306,6 +313,24 @@ export function adminCommand(name: string, ctx: Context): boolean {
         const child = new Context(ctx.store, ctx.actor, { ...ctx.request, payload: data });
         adminCommand('roster.save', child); ctx.touched.push(...child.touched);
       } break;
+    }
+    case 'roster.repeat': {
+      const doctor = ctx.store.person(ctx.t('doctorId'));
+      requireThat(doctor.role === 'doctor' && doctor.state === 'Active' && doctor.department === ctx.t('departmentId'), 'Choose an active consultant in this department.');
+      const dates = repeatedRosterDates(ctx.t('month'), strings(p, 'weekdays'));
+      requireThat(dates.length > 0, 'Choose a valid month and at least one weekday.');
+      const conflicts = ctx.all('roster').filter(entry => entry.department === doctor.department && dates.includes(text(entry.data, 'date')) && text(entry.data, 'shift') === ctx.t('shift') && text(entry.data, 'doctorId') !== doctor.id);
+      requireThat(!conflicts.length || ctx.b('replaceExisting'), `${conflicts.length} existing assignments conflict. Review them and explicitly confirm replacement.`);
+      let changed = 0;
+      for (const date of dates) {
+        const existing = ctx.all('roster').find(entry => entry.department === doctor.department && text(entry.data, 'date') === date && text(entry.data, 'shift') === ctx.t('shift'));
+        if (existing && text(existing.data, 'doctorId') === doctor.id) continue;
+        const data = { name: `${date} ${ctx.t('shift')} - ${doctor.name}`, departmentId: doctor.department, doctorId: doctor.id, date, shift: ctx.t('shift'), reason: ctx.t('reason'), patternMonth: ctx.t('month') };
+        if (existing) ctx.update({ ...existing, doctorId: doctor.id }, data, 'Published');
+        else ctx.create('roster', data, 'Published', { doctorId: doctor.id, department: doctor.department });
+        changed++;
+      }
+      ctx.result = { dates, changed, unchanged: dates.length - changed, replaced: conflicts.length }; break;
     }
     case 'job.presence': {
       requireThat(new Date(`${ctx.t('date')}T22:00:00+05:30`).getTime() <= new Date(ctx.now()).getTime(), 'Advance the demo clock past 22:00 IST before running that day’s reset.');
@@ -343,6 +368,18 @@ export function adminCommand(name: string, ctx: Context): boolean {
       if (ctx.t('state') === 'Pilot') requireThat(ctx.t('pilotDoctors'), 'List at least one pilot doctor.');
       if (prior) ctx.update(prior, p); else ctx.create('feature', p, 'Active', { department: ctx.t('departmentId') }); break;
     }
+    case 'home.defaults': {
+      const layout = p.layout;
+      requireThat(layout && typeof layout === 'object' && !Array.isArray(layout), 'Choose a complete default Home arrangement.');
+      const locked = [...new Set(['referrals', 'results', ...strings(p, 'lockedCards')])];
+      requireThat(locked.every(id => homeCards.some(card => card.id === id)), 'Choose only listed Home cards.');
+      validateHomeLayout(layout, locked);
+      const existing = ctx.all('homeDefault').find(entry => entry.department === ctx.t('departmentId'));
+      const data = { name: 'Department Home defaults', layout, lockedCards: locked, reason: ctx.t('reason') };
+      if (existing) ctx.update(existing, data, 'Published');
+      else ctx.create('homeDefault', data, 'Published', { department: ctx.t('departmentId') });
+      break;
+    }
     case 'announcement.publish':
       requireThat(ctx.t('end') > ctx.t('start'), 'Announcement end must follow the start.');
       ctx.create('announcement', p, 'Published', { department: ctx.t('departmentId') || undefined }); break;
@@ -361,13 +398,17 @@ export function adminCommand(name: string, ctx: Context): boolean {
       requireThat(!doctorRoles.includes(actor.role) && actor.role !== 'patient', 'Use clinical profile administration for clinical accounts.');
       if (actor.role === 'superadmin' && ctx.t('role') !== 'superadmin') requireThat(ctx.store.people().filter(x => x.role === 'superadmin' && x.state === 'Active').length > 1, 'The last active super admin cannot be removed.');
       if (ctx.t('role') === 'superadmin') ctx.create('roleApproval', { name: `${actor.name} elevation`, actorId: actor.id, requestedBy: ctx.actor.id, role: 'superadmin', department: ctx.t('departmentId'), reason: ctx.t('reason') }, 'Pending');
-      else { actor.role = ctx.t('role') as Role; actor.department = ctx.t('departmentId'); saveActor(ctx, actor); }
+      else {
+        const role = ctx.t('role') as Role; const assigned = strings(ctx.p, 'roles');
+        requireThat(!assigned.length || (staffRoles.includes(role) && assigned.every(value => staffRoles.includes(value as Role))), 'Only staff roles may be combined; administrative accounts remain separate.');
+        actor.role = role; actor.roles = [...new Set([role, ...assigned as Role[]])]; actor.department = ctx.t('departmentId'); saveActor(ctx, actor);
+      }
       break;
     }
     case 'role.approve': {
       const approval = ctx.targetOf('roleApproval');
       requireThat(text(approval.data, 'requestedBy') !== ctx.actor.id && text(approval.data, 'actorId') !== ctx.actor.id, 'A different super admin must approve this elevation.');
-      const actor = ctx.store.person(text(approval.data, 'actorId')); actor.role = 'superadmin'; saveActor(ctx, actor);
+      const actor = ctx.store.person(text(approval.data, 'actorId')); actor.role = 'superadmin'; actor.roles = ['superadmin']; saveActor(ctx, actor);
       ctx.update(approval, { approvedBy: ctx.actor.id, reason: ctx.t('reason') }, 'Approved'); break;
     }
     case 'account.remove': {
