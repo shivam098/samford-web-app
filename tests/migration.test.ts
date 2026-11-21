@@ -2,13 +2,14 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync, backup } from 'node:sqlite';
 import { createHash } from 'node:crypto';
-import { mkdtempSync, mkdirSync, rmSync, rmdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, rmdirSync, readFileSync, writeFileSync, existsSync, readdirSync, cpSync } from 'node:fs';
 import { resolve, join, basename } from 'node:path';
 import { createServer } from 'node:http';
 import { spawn } from 'node:child_process';
 import { Store } from '../server/store.js';
 import { seed } from '../server/seed.js';
 import { migrate, migrationSteps } from '../server/migrate.js';
+import { inspectPng, inspectPdf } from '../server/blobs.js';
 import { text, type Data } from '../shared/model.js';
 
 function fixture() {
@@ -62,7 +63,13 @@ test('v2 database upgrades to v3 additively: original bytes kept, labs, personas
     assert.equal(store.person('doctor-c').role, 'doctor'); assert.deepEqual(store.person('radiology').labIds, ['radiology']);
     assert.deepEqual(store.all('labUnit').map(lab => text(lab.data, 'labId')).sort(), ['central-lab', 'radiology']);
     assert.equal(store.get('visit-history-a').status, 'Done'); assert.equal(store.get('visit-history-b').status, 'Done');
-    assert.equal(store.all('handwrittenDocument').length, 6); assert.equal(store.all('investigationResult').filter(result => result.status === 'Released').length, 1);
+    const manifest = JSON.parse(readFileSync(join('fixtures', 'seed-history', 'manifest.json'), 'utf8')) as Data[];
+    const expectedVersions = manifest.reduce((sum, visit) => sum + (visit.documents as Data[]).length + (Array.isArray(visit.addenda) ? visit.addenda.length : 0), 0);
+    assert.equal(store.all('handwrittenDocument').length, expectedVersions); assert.equal(store.all('investigationResult').filter(result => result.status === 'Released').length, 2);
+    assert.equal(text(store.get('visit-history-a').data, 'date'), text(manifest[0], 'visitDate'), 'the seeded visit matches the date printed on the fixture pages');
+    assert.ok(store.all('handwrittenDocument').every(version => text(version.data, 'inkFormat') === 'samford-ink/1'));
+    const v3 = store.audits().find(entry => entry.action === 'schema.migrate' && entry.target === 'v3')!;
+    assert.match(text(v3.after as Data, 'historySource'), /^doctor-app samford-ink\/1 fixtures/);
     assert.equal(store.all('coding').length, 0, 'seeded history creates no coding work');
     const orphans = store.db.prepare('SELECT COUNT(*) AS n FROM blob_refs r LEFT JOIN blobs b ON b.sha256=r.sha256 WHERE b.sha256 IS NULL').get()!;
     assert.equal(Number(orphans.n), 0);
@@ -79,6 +86,30 @@ test('pre-release blob reference tables gain indexed owner columns when opened',
   const store = new Store(f.path);
   try { assert.deepEqual({ ...store.db.prepare('SELECT patient_id, doctor_id FROM blob_refs').get() }, { patient_id: 'patient-x', doctor_id: 'doctor-x' }); }
   finally { store.close(); f.clean(); }
+});
+test('doctor-app fixtures are valid immutable blobs, and a corrupt fixture set falls back to placeholders without blocking startup', async () => {
+  const blobs = join('fixtures', 'seed-history', 'blobs');
+  for (const name of readdirSync(blobs)) {
+    const bytes = readFileSync(join(blobs, name)); assert.equal(createHash('sha256').update(bytes).digest('hex'), name.split('.')[0]);
+    if (name.endsWith('.png')) assert.deepEqual(inspectPng(bytes), { width: 1500, height: 2121 });
+    else if (name.endsWith('.pdf')) await inspectPdf(bytes);
+    else { const ink = JSON.parse(bytes.toString('utf8')); assert.equal(ink.format ?? ink.schema, 'samford-ink/1'); }
+  }
+  const f = fixture(); const corrupt = join(f.directory, 'fixtures'); cpSync(join('fixtures', 'seed-history'), corrupt, { recursive: true });
+  const victim = readdirSync(join(corrupt, 'blobs')).find(name => name.endsWith('.png'))!;
+  const bytes = readFileSync(join(corrupt, 'blobs', victim)); bytes[bytes.length - 30] ^= 0xff; writeFileSync(join(corrupt, 'blobs', victim), bytes);
+  const previous = process.env.SAMFORD_FIXTURE_DIR; process.env.SAMFORD_FIXTURE_DIR = corrupt;
+  const store = new Store(f.path);
+  try {
+    seed(store); migrate(store);
+    const v3 = store.audits().find(entry => entry.action === 'schema.migrate' && entry.target === 'v3')!.after as Data;
+    assert.equal(text(v3, 'historySource'), 'synthetic placeholder pages'); assert.match(text(v3, 'fixtureProblem'), /hash/);
+    assert.equal(store.get('visit-history-a').status, 'Done'); assert.equal(store.setting('schemaVersion', 0), 3);
+    assert.equal(Number(store.db.prepare("SELECT COUNT(*) AS n FROM blobs WHERE created_by='doctor-app-fixtures'").get()!.n), 0, 'nothing from the rejected fixture set was kept');
+  } finally {
+    if (previous === undefined) delete process.env.SAMFORD_FIXTURE_DIR; else process.env.SAMFORD_FIXTURE_DIR = previous;
+    store.close(); rmSync(corrupt, { recursive: true, force: true }); f.clean();
+  }
 });
 test('unsupported identities roll migration back, and newer databases are refused', () => {
   const f = fixture(); const store = new Store(f.path);

@@ -1,6 +1,6 @@
 import { build } from 'esbuild';
-import { mkdir, readFile, copyFile, writeFile } from 'node:fs/promises';
-import { resolve, join } from 'node:path';
+import { mkdir, readFile, copyFile, writeFile, readdir } from 'node:fs/promises';
+import { resolve, join, relative, dirname } from 'node:path';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 
@@ -17,8 +17,11 @@ const files = ['index.html', 'main.js', 'main.css', 'sw.js', 'build.json', 'font
 for (const file of files) await copyFile(join(root, 'dist-candidate', file), join(release, 'public', file));
 for (const file of ['NotoSansDevanagari.ttf', 'OFL.txt', 'source.json']) await copyFile(join(root, 'assets', 'fonts', file), join(release, 'assets', 'fonts', file));
 await build({ entryPoints: ['server/main.ts'], bundle: true, platform: 'node', format: 'esm', packages: 'external', target: 'node24', outfile: join(release, 'server.mjs') });
+// Seeded handwritten history: the server reads fixtures/seed-history relative to the release directory.
+const fixtures = (await readdir(join(root, 'fixtures', 'seed-history'), { recursive: true, withFileTypes: true })).filter(entry => entry.isFile()).map(entry => relative(join(root, 'fixtures', 'seed-history'), join(entry.parentPath, entry.name)));
+for (const file of fixtures) { await mkdir(dirname(join(release, 'fixtures', 'seed-history', file)), { recursive: true }); await copyFile(join(root, 'fixtures', 'seed-history', file), join(release, 'fixtures', 'seed-history', file)); }
 const hashes = {};
-for (const file of ['server.mjs', ...files.map(file => join('public', file))]) hashes[file] = createHash('sha256').update(await readFile(join(release, file))).digest('hex');
+for (const file of ['server.mjs', ...files.map(file => join('public', file)), ...fixtures.map(file => join('fixtures', 'seed-history', file))]) hashes[file] = createHash('sha256').update(await readFile(join(release, file))).digest('hex');
 await writeFile(join(release, 'release.json'), JSON.stringify({ version: pkg.version, source, dirty, packagedAt: new Date().toISOString(), hashes }, null, 2));
 console.log(`Immutable candidate prepared at ${release}`);
 console.log('No live process, served asset or shared database was changed. Start-Release.ps1 defaults to isolated port/data.');

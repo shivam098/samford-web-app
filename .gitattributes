@@ -1,3 +1,5 @@
 * text=auto eol=lf
 assets/fonts/*.ttf binary
+# Content-addressed fixtures: any line-ending conversion would change their SHA-256 names.
+fixtures/seed-history/blobs/** binary
 assets/fonts/OFL.txt whitespace=-blank-at-eol

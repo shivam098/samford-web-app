@@ -21,6 +21,14 @@ These are planning assumptions. Confirm them with the hospital before sizing har
 
 Writes are tiny in request terms. The two things that grow are **immutable blob storage** and **polling traffic from patient phones**.
 
+The patient app team measured its real client against this backend ([client load model](https://github.com/shivam098/samford-patient-android/blob/main/docs/client-load-model.md)):
+
+- Steady state is one `GET /patient/notifications` per phone every 30 minutes from a stable per-install phase. That is about 1 KB on the wire, and more than 95% of polls are `304`.
+- The fleet estimate is about 5.2 million requests/day: about 60 requests/s on average, about 70/s at a typical peak, and about 230/s if 10% of users open the app at once.
+- A change costs one feed page plus one record (about 7 KB uncompressed) for that profile only. Pages are downloaded once and cached by hash.
+
+This matches the planning model above. Their suggestions are already part of section 2: gzip or Brotli for JSON at the CDN or API, a CDN for blobs, and an O(1) per-audience notification watermark.
+
 ## 2. Production architecture
 
 ```mermaid
@@ -40,6 +48,7 @@ flowchart LR
 
 ### 2.1 API tier
 - Stateless containers (two or more, across availability zones) behind a load balancer, autoscaling on CPU and request rate. Two small instances cover the design target with headroom; the per-request work is an authorization check and one indexed query.
+- JSON responses are compressed (gzip or Brotli) at the CDN or API. The mock sends uncompressed JSON from loopback; Cloudflare's edge may compress it for public clients that accept compression.
 - The `/api/mobile/v1` contract stays the same. Production implements the same OpenAPI document, idempotency rules, error codes, cursors and ETags, so the apps do not change.
 
 ### 2.2 Database
@@ -111,3 +120,5 @@ Content addressing removes duplicates (for example unchanged pages carried into 
 - idempotent replay of every completion, then a check that no duplicates were created.
 
 Read the results as the behaviour of this single-node mock on one machine, with the load generator sharing that machine. They show that the contract's polling model and indexed queries hold up at 1 lakh profiles. They are not a forecast of production throughput.
+
+For scale: in the latest run, the mock answered `304` re-polls at about 1,600 requests/s on that developer machine. The patient app's estimated burst, with 10% of users opening the app at once, is about 230 requests/s. That comparison suggests polling is not the bottleneck even before push and a CDN. It is still not a production sizing figure.

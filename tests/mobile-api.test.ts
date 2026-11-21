@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID, createHash } from 'node:crypto';
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import type { Server } from 'node:http';
 import { createApplication } from '../server/app.js';
@@ -213,7 +213,7 @@ test('paperless OPD round trip: queue, care-scoped record, atomic bundle, pharma
 
     const pharmacy = await b.web('pharmacy');
     const pharmacyDocs = (await pharmacy.request('/api/entities?type=handwrittenDocument')).body as Entity[];
-    assert.ok(pharmacyDocs.length >= 4 && pharmacyDocs.every(doc => text(doc.data, 'type') === 'PRESCRIPTION'));
+    assert.ok(pharmacyDocs.length >= 3 && pharmacyDocs.every(doc => text(doc.data, 'type') === 'PRESCRIPTION'));
     const pharmacyCopy = `${rxId}-v1-pharmacy`;
     await pharmacy.cmd('handwriting.dispense', { outcome: 'Dispensed' }, pharmacyCopy, 422);
     await pharmacy.cmd('handwriting.view', {}, pharmacyCopy);
@@ -261,7 +261,9 @@ test('paperless OPD round trip: queue, care-scoped record, atomic bundle, pharma
     const patientFeed = await allEvents(phone, '/patient/profiles/patient-a/feed');
     const patientTypes = new Set(patientFeed.events.map(event => event.type));
     for (const type of ['VISIT_UPDATED', 'DOCUMENT_AVAILABLE', 'DOCUMENT_STATE_CHANGED', 'LAB_RESULT_READY']) assert.ok(patientTypes.has(type), type);
-    assert.ok(!JSON.stringify(patientFeed.events).includes('6.9'), 'patient feed messages carry no result values');
+    // Timestamps are masked first: a time such as 04:41:16.912Z would otherwise contain "6.9" by coincidence.
+    const feedText = JSON.stringify(patientFeed.events).replace(/\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z/g, '<time>');
+    for (const value of ['6.9', '11.2']) assert.ok(!new RegExp(`(?<![\\d.])${value.replace('.', '\\.')}(?!\\d)`).test(feedText), `patient feed messages carry no result values (${value})`);
     const notices = await phone.get('/patient/notifications?limit=500'); valid('NotificationPage', notices.body);
     const titles = new Set(notices.body.notifications.map((notice: Data) => notice.title));
     for (const title of ['New document', 'Prescription dispensed', 'Result ready']) assert.ok(titles.has(title), title);
@@ -398,7 +400,17 @@ test('patient OTP limits, wrong-code lock shared with the web portal, token expi
     assert.deepEqual(session.body.profiles.map((profile: Data) => profile.profileId), ['patient-b']);
     const record = await phone.get('/patient/profiles/patient-b/record');
     const rx = record.body.visits.find((visit: Data) => visit.visitId === 'visit-history-b').documents.find((doc: Data) => doc.type === 'PRESCRIPTION');
-    assert.deepEqual(rx.versions.map((version: Data) => version.version), [1, 2]); assert.equal(rx.versions[1].reason, 'Corrected dose and duration (synthetic sample)');
+    const fixtureVisit = (JSON.parse(readFileSync(join('fixtures', 'seed-history', 'manifest.json'), 'utf8')) as Data[]).find(visit => visit.patientId === 'patient-b')!;
+    const addenda = Array.isArray(fixtureVisit.addenda) ? fixtureVisit.addenda.length : 0;
+    assert.deepEqual(rx.versions.map((version: Data) => version.version), Array.from({ length: 1 + addenda }, (_, index) => index + 1));
+    assert.equal(rx.versions[0].pages[0].pngSha256, ((fixtureVisit.documents as Data[]).find(doc => doc.type === 'PRESCRIPTION')!.pages as Data[])[0].pngSha256, 'the patient sees the exact tablet fixture page');
+    if (addenda) {
+      const latest = rx.versions.at(-1); const fixtureAddendum = (fixtureVisit.addenda as Data[]).at(-1)!;
+      assert.deepEqual(latest.pages.map((page: Data) => page.pngSha256), (fixtureAddendum.pages as Data[]).map(page => page.pngSha256), 'the latest version holds the exact addendum pages');
+      assert.equal(latest.reason, fixtureAddendum.reason);
+      assert.equal(rx.recipients.find((item: Data) => item.kind === 'PHARMACY').state, 'DISPENSED', 'the pharmacy dispensed the corrected version');
+    }
+    assert.equal(rx.recipients.find((item: Data) => item.kind === 'PATIENT').state, 'AVAILABLE');
     const tablet = await b.doctor('doctor-a');
     assert.equal((await tablet.get('/doctor/patients/patient-b/record')).status, 200);
     await b.call('POST', '/api/test-support/clock', { json: { minutes: 8 * 24 * 60 } });

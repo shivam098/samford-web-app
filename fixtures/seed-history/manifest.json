@@ -1,0 +1,239 @@
+[
+    {
+        "fixtureId": "seed-history-patient-a",
+        "patientId": "patient-a",
+        "uhid": "SMP-PATIENT-A",
+        "doctorId": "doctor-c",
+        "visitDate": "2026-11-07",
+        "signedAt": "2026-11-07T04:40:00Z",
+        "documents": [
+            {
+                "clientDocId": "seed-patient-a-vs",
+                "type": "VISIT_SUMMARY",
+                "title": "Visit Summary",
+                "inkFormat": "samford-ink/1",
+                "inkSha256": "784e87466662a0a7ff84830e081c88ffd1f8a3613a655220d010f22c58e3ce13",
+                "pdfSha256": "459bb3c78c427ed74044a760102f54ae7177c06d41f57fc7abb7231f2553f12f",
+                "pages": [
+                    {
+                        "index": 0,
+                        "pngSha256": "8de80a9f3cc2bbe9f6f883d1e7d6c00135952e1c20e7c3ecd255c362e615d95d",
+                        "widthPx": 1500,
+                        "heightPx": 2121
+                    },
+                    {
+                        "index": 1,
+                        "pngSha256": "eabd80cdcf8fc288c846b7f8539026e55ba53dedfd8212d577134f1c402af4c8",
+                        "widthPx": 1500,
+                        "heightPx": 2121
+                    }
+                ],
+                "routing": {
+                    "pharmacy": false,
+                    "labs": [],
+                    "patient": true
+                }
+            },
+            {
+                "clientDocId": "seed-patient-a-rx",
+                "type": "PRESCRIPTION",
+                "title": "Prescription",
+                "inkFormat": "samford-ink/1",
+                "inkSha256": "6ab976f12a7bc339a5bc4521946d4b8e3e19c26f316b1de81cf9cd8a42e1e0ab",
+                "pdfSha256": "52eaab190d111f5897c0ec9cc2cfd1757a6a9ca4a0d363dbf327f3201a1610ae",
+                "pages": [
+                    {
+                        "index": 0,
+                        "pngSha256": "8272a2ac54207bffa47294d6eebac5681f913750354bde996c11ecd0ac61de5a",
+                        "widthPx": 1500,
+                        "heightPx": 2121
+                    }
+                ],
+                "routing": {
+                    "pharmacy": true,
+                    "labs": [],
+                    "patient": true
+                },
+                "hints": {
+                    "medicines": [
+                        {
+                            "name": "Tab Paracetamol 650 mg",
+                            "frequency": "1-0-1",
+                            "durationDays": 5,
+                            "notes": "After food"
+                        },
+                        {
+                            "name": "Tab Metformin 500 mg",
+                            "frequency": "1-0-0",
+                            "durationDays": 7,
+                            "notes": "After food"
+                        }
+                    ],
+                    "tests": []
+                }
+            },
+            {
+                "clientDocId": "seed-patient-a-ix",
+                "type": "INVESTIGATIONS",
+                "title": "Investigations",
+                "inkFormat": "samford-ink/1",
+                "inkSha256": "c5ab91a589bacb82d32f3507f16419cf1719dab4730065a26b37b3e7b868a361",
+                "pdfSha256": "3b39b0863ea18ec868ec11dcbdbae75d26e5f162ff3474f6cba23b0838b671ec",
+                "pages": [
+                    {
+                        "index": 0,
+                        "pngSha256": "53ca421c9137a96f7b03bbef5ed18dd9742b4862a1a529372ec072d435b3f7cc",
+                        "widthPx": 1500,
+                        "heightPx": 2121
+                    }
+                ],
+                "routing": {
+                    "pharmacy": false,
+                    "labs": [
+                        "central-lab"
+                    ],
+                    "patient": true
+                }
+            }
+        ]
+    },
+    {
+        "fixtureId": "seed-history-patient-b",
+        "patientId": "patient-b",
+        "uhid": "SMP-PATIENT-B",
+        "doctorId": "doctor-c",
+        "visitDate": "2026-10-22",
+        "signedAt": "2026-10-22T04:40:00Z",
+        "documents": [
+            {
+                "clientDocId": "seed-patient-b-vs",
+                "type": "VISIT_SUMMARY",
+                "title": "Visit Summary",
+                "inkFormat": "samford-ink/1",
+                "inkSha256": "6b51bee8f836da9becbc2fe329c2361e1555b1945f1e0144affcb970259aa8c2",
+                "pdfSha256": "2dd4ebb865692cdadf99c50d075bc2ab8de29d41291e03ace8b66f0f42b8cbe2",
+                "pages": [
+                    {
+                        "index": 0,
+                        "pngSha256": "49d49eb06c181d57b7d20e78f0dc73e642bceb8a766c6f758f2d4e3ae24d9421",
+                        "widthPx": 1500,
+                        "heightPx": 2121
+                    },
+                    {
+                        "index": 1,
+                        "pngSha256": "5eabb5566443a67ca6c17887474274411bf2e5976fa3f1e9c6cd581028e31072",
+                        "widthPx": 1500,
+                        "heightPx": 2121
+                    }
+                ],
+                "routing": {
+                    "pharmacy": false,
+                    "labs": [],
+                    "patient": true
+                }
+            },
+            {
+                "clientDocId": "seed-patient-b-rx",
+                "type": "PRESCRIPTION",
+                "title": "Prescription",
+                "inkFormat": "samford-ink/1",
+                "inkSha256": "5c3a6f0fc6993bca3ce1a6bc2f2cb165257054b52b6113366bd63f10b2d25cc5",
+                "pdfSha256": "6033783c8ff1b0520815403c3a55538f24d1aeec282ed8d161b68c780409121d",
+                "pages": [
+                    {
+                        "index": 0,
+                        "pngSha256": "e8b105373d6404f536dcad746dd8bb4edf9f8f8a98b352b9eac70f70ae74d3a3",
+                        "widthPx": 1500,
+                        "heightPx": 2121
+                    }
+                ],
+                "routing": {
+                    "pharmacy": true,
+                    "labs": [],
+                    "patient": true
+                },
+                "hints": {
+                    "medicines": [
+                        {
+                            "name": "Tab Paracetamol 650 mg",
+                            "frequency": "1-0-1",
+                            "durationDays": 5,
+                            "notes": "After food"
+                        },
+                        {
+                            "name": "Tab Metformin 500 mg",
+                            "frequency": "1-0-0",
+                            "durationDays": 7,
+                            "notes": "After food"
+                        }
+                    ],
+                    "tests": []
+                }
+            },
+            {
+                "clientDocId": "seed-patient-b-ix",
+                "type": "INVESTIGATIONS",
+                "title": "Investigations",
+                "inkFormat": "samford-ink/1",
+                "inkSha256": "9ef3010d3346ce868b882edddaa1cdd1326761eca10413113e8d40969fa7192d",
+                "pdfSha256": "d732ffa952932803a34f2157b0ed1a5e7a110b164dedd89c6a82ca0185a4c23d",
+                "pages": [
+                    {
+                        "index": 0,
+                        "pngSha256": "40ae641f0b8ab1360c25e6f0330ea1a2dfc89b1a179cd0608deff4af662ede09",
+                        "widthPx": 1500,
+                        "heightPx": 2121
+                    }
+                ],
+                "routing": {
+                    "pharmacy": false,
+                    "labs": [
+                        "central-lab"
+                    ],
+                    "patient": true
+                }
+            }
+        ],
+        "addenda": [
+            {
+                "clientDocId": "seed-patient-b-rx",
+                "reason": "Corrected dose and duration (synthetic sample)",
+                "signedAt": "2026-10-22T05:10:00Z",
+                "pages": [
+                    {
+                        "index": 0,
+                        "pngSha256": "e8b105373d6404f536dcad746dd8bb4edf9f8f8a98b352b9eac70f70ae74d3a3",
+                        "widthPx": 1500,
+                        "heightPx": 2121
+                    },
+                    {
+                        "index": 1,
+                        "pngSha256": "f77340971493df83725eef4bb704c8deb8c0e6ff90b4ab9495cd213eb86298a8",
+                        "widthPx": 1500,
+                        "heightPx": 2121
+                    }
+                ],
+                "pdfSha256": "ba5be26cfd70147a6f0d4f1ed0a97df804a574bfcc0410d8e65a71ef9a666d4c",
+                "inkSha256": "9a2f2dbeb4803d0f59e2130134ae423ccee1d849e43f4ccc7a55e6219518b1cb",
+                "inkFormat": "samford-ink/1",
+                "hints": {
+                    "medicines": [
+                        {
+                            "name": "Tab Paracetamol 650 mg",
+                            "frequency": "1-0-1",
+                            "durationDays": 5,
+                            "notes": "After food"
+                        },
+                        {
+                            "name": "Tab Metformin 500 mg",
+                            "frequency": "1-0-1",
+                            "durationDays": 30,
+                            "notes": "After food"
+                        }
+                    ],
+                    "tests": []
+                }
+            }
+        ]
+    }
+]

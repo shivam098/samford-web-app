@@ -1,10 +1,36 @@
 # Samford workflow lab
 
-A working **public synthetic hospital prototype**, not the earlier PRD viewer. Responsive doctor, administration, staff and patient workspaces share a persistent SQLite mock hospital.
+A working **public synthetic hospital prototype**, not the earlier PRD viewer. Responsive doctor, administration, staff and patient workspaces share a persistent SQLite mock hospital. Since 0.3 it is also the **mock backend for the Samford doctor tablet and patient Android apps** (paperless OPD; see below).
 
-**Version 0.2 is a prepared candidate, not an automatic live upgrade.** Builds write `dist-candidate` only. The existing port-4317 demo and its `dist` assets/database are deliberately left alone until a coordinated restart.
+**Builds never switch testers silently.** Builds write `dist-candidate` only; the live port-4317 demo runs from an immutable, checksummed release under `data\releases` and changes only through the explicit upgrade steps below.
 
 **No tester password is required.** The landing page explicitly signs into a named synthetic persona. Anyone with the temporary public URL can use those personas and change the shared sample records. Do not enter real patient information, real credentials or original hospital media.
+
+## Paperless OPD: doctor tablet and patient apps
+
+The doctor writes on a Samsung tablet ([shivam098/samford-doctor-android](https://github.com/shivam098/samford-doctor-android)). When the visit is marked complete, the handwritten pages, one PDF with exactly those pixels and the vector ink become immutable, hash-chained documents. They reach:
+
+- the hospital pharmacy (prescriptions);
+- each chosen lab (investigations);
+- the patient app ([shivam098/samford-patient-android](https://github.com/shivam098/samford-patient-android)).
+
+Dispensing, lab results and patient views flow back to the tablet. A returning patient's earlier documents are visible to the treating doctor.
+
+- **Contract:** [`docs/mobile-api-v1.yaml`](docs/mobile-api-v1.yaml) (OpenAPI 3.1, generated from `shared/mobile-contract.ts`) and [`docs/mobile-sync.md`](docs/mobile-sync.md): authentication, idempotency, offline completion, record hashes, delivery states, feeds, authorization, errors, limits and seed data.
+- **Discovery:** the apps read `https://gist.githubusercontent.com/shivam098/a4237b7aa37de0c876d5c08a3c250d52/raw/samford-endpoint.json`. `Start-Tunnel.ps1` keeps it current.
+- **Web desks:**
+  - Pharmacy dispensing (SJ10), Sample collection (SJ14) and Results & verification (SJ15) list the routed handwritten copies. Opening a copy records **Viewed** for the doctor. Each copy has zoom, page and version navigation and the signed PDF.
+  - Patients see their documents under **My documents** (SJ36). Doctors see them in History & allergies (DJ07) and in the visit workspace.
+  - Lab results for handwritten requests need a different verifier before release, as in SJ15.
+- **Isolated backend for app development and CI:** `npm run mobile:isolated -- --port 4320 --data <empty folder> --reset --relaxed-limits --test-support`. This creates its own port and throwaway database, never the shared demo.
+- **Scale:** [`docs/scale-design.md`](docs/scale-design.md) describes the production design for 1 lakh patient-app users and 50 doctors. `npm run load-test` seeds 1 lakh synthetic patients into a throwaway database and writes [`docs/load-test-results.md`](docs/load-test-results.md). These are single-node mock measurements, not production capacity.
+- **Seeded history:** uses the tablet app's own `samford-ink/1` pages from `fixtures/seed-history` (see its `SOURCE.md`).
+
+Boundaries:
+- "Signed" means an immutable hash-chained record, not a legal e-signature.
+- Demo OTP codes are returned by the API because no SMS exists.
+- Notifications are polled; there is no push.
+- Pharmacy stock and billing for handwritten prescriptions are outside the mock.
 
 ## Run on Windows
 
@@ -41,10 +67,20 @@ For an explicitly agreed live upgrade:
 1. Ask testers to sync/review pending work and close their tabs. Retain the old release and browser profiles; do not clear encrypted drafts.
 2. Stop only the known live server process, not all Node processes. The existing Cloudflare tunnel may keep running against 4317 during the brief outage.
 3. Run `npm run backup:shared`. It takes a consistent SQLite online backup and checks integrity. Do **not** copy only a WAL-active `.sqlite` file.
-4. Run `.\Start-Release.ps1 -ReleaseDirectory 'data\releases\<verified-release-folder>' -Port 4317 -UseSharedData`. This is the explicit shared-data switch. Port binding and frontend-version checks occur before database initialization.
-5. Confirm `/api/health` reports `0.2.0`; reopen/reload the browser and verify the intended persona/worklist. Recheck the existing public HTTPS URL before announcing the switch.
+4. Prove the migration on a copy: `node --import tsx scripts\verify-upgrade.ts --backup <backup> --mode dry-run --out data\upgrade-dryrun.json`. Every original record, version, credential, receipt, audit entry and session must stay byte-identical. The dry-run then runs the startup jobs on the copy and records exactly which records they will append System versions to, such as missed 22:00 presence resets.
+5. Run `.\Start-Release.ps1 -ReleaseDirectory 'data\releases\<verified-release-folder>' -Port 4317 -UseSharedData`. This is the explicit shared-data switch. Port binding and frontend-version checks occur before database initialization.
+6. Confirm `/api/health` reports the release version, then run `node --import tsx scripts\verify-upgrade.ts --backup <backup> --mode live --expect data\upgrade-dryrun.json`. Original version rows must be byte-identical, current rows may only gain newer versions, and every System version must match the dry-run prediction. Reload the browser and verify the intended persona and worklist.
 
-Schema v2 adds staff role metadata, a dual-role sample identity, a canonical synthetic scheme package and missing payer tariffs. Existing clinical/financial records, credentials, receipts, old versions and audit entries are retained. Earlier claims without a canonical package need the explicit **Reconcile an earlier package reference** action and fresh simulated approval; paid bills are not silently repriced. Pending admin account edits may encounter an honest version conflict after metadata migration.
+Schema v2 adds staff role metadata, a dual-role sample identity, a canonical synthetic scheme package and missing payer tariffs. Schema v3 adds:
+- the lab catalog (central-lab, radiology);
+- lab assignments for the seeded lab staff;
+- the `doctor-c` and `radiology` personas;
+- mobile tables (tokens, OTP, feeds, idempotency, content-addressed blobs);
+- seeded handwritten history.
+
+Existing clinical and financial records, credentials, receipts, old versions and audit entries are retained.
+
+Earlier claims without a canonical package need the explicit **Reconcile an earlier package reference** action and fresh simulated approval; paid bills are not silently repriced. Pending admin account edits may encounter an honest version conflict after metadata migration.
 
 The migration is transactionally idempotent and refuses unsupported/newer schemas. Its tests include an opt-in **read-only online backup of the running v1 database**, migration of that copy, byte-for-byte preservation checks and live-asset fingerprints:
 
@@ -66,7 +102,14 @@ With the intentionally selected live app already running on 4317 and `cloudflare
 .\Start-Tunnel.ps1
 ```
 
-Cloudflare prints the actual random `https://....trycloudflare.com` address. It changes when a new Quick Tunnel is started. The computer must remain awake and **both the app and tunnel processes must remain running**. No Cloudflare account or named tunnel is configured.
+The script:
+1. Starts cloudflared and reads the random `https://....trycloudflare.com` address.
+2. Waits until the mobile API answers through it.
+3. Writes `data\tunnel.json`.
+4. Publishes the address to the discovery gist as `online`. It uses the `shivam098` GitHub credential from `gh` at runtime for that process only; the token is never stored.
+5. Waits while the tunnel runs. If cloudflared exits, it marks the gist `offline`.
+
+Use `-NoGist` to skip publishing. The address changes whenever a new Quick Tunnel starts. The computer must remain awake and **both the app and tunnel processes must remain running**. No Cloudflare account or named tunnel is configured.
 
 The public demo has no access password **by explicit product-owner choice**. Persona sessions, server-side role checks, same-origin mutation checks, body/rate limits and private document routes still apply. The SQLite database, filesystem, source files, original PRDs, logs and test artifacts are not HTTP-served. Only built frontend assets and intentionally exposed API/profile/board routes are served.
 
@@ -159,6 +202,11 @@ Browser tests **actually operate primary actions/read interactions across all 87
 
 This is not a claim that every one of the 349 illustrated PRD states, every optional branch, five-lakh-patient scale or a certified accessibility/privacy/financial standard has been reproduced and validated.
 
+Mobile backend evidence (part of `npm test` and `npm run test:browser`):
+- `tests\mobile-api.test.ts` covers sign-in and device binding, the paperless round trip, idempotent replay, `MISSING_BLOBS` retry, blob validation, care-scoped access and audit, addenda, feeds with cursors and `304`, OTP limits and locks, token expiry, restart persistence and IT sign-out.
+- `tests\handwriting-browser.test.ts` operates the pharmacy, lab, patient-portal, doctor-web and front-desk handoffs against the tablet API.
+- `tests\migration.test.ts` proves v2-to-v3 preservation and the fixture fallback.
+
 ## Explicit boundaries and remaining limitations
 
 - **Entirely simulated providers:** ETHER, ABDM/ABHA, SMS, WhatsApp, payments, insurers/schemes, LIS/RIS/PACS, video/telephone and signing. Requests, responses, failed attempts, follow-ups and relevant statuses are real persisted demo records; no external effects occur.
@@ -180,6 +228,9 @@ This is not a claim that every one of the 349 illustrated PRD states, every opti
 | PDFs and reporting | `server\documents.ts`, `server\reporting.ts` |
 | Frontend and local outbox | `src\main.tsx`, `src\pages.tsx`, `src\forms.tsx`, `src\storage.ts`, `src\sw.js`, `src\styles.css` |
 | Behavior, browser and migration evidence | `tests\api.test.ts`, `tests\completeness-api.test.ts`, `tests\browser.test.ts`, `tests\completeness-browser.test.ts`, `tests\journey-browser.test.ts`, `tests\migration.test.ts`, `scripts\coverage.ts` |
-| Release isolation | `scripts\release.mjs`, `scripts\backup.mjs`, `Start-Candidate.ps1`, `Start-Release.ps1` |
+| Mobile API (doctor tablet, patient app) | `shared\mobile-contract.ts`, `server\mobile-api.ts`, `server\mobile-auth.ts`, `server\mobile-validate.ts`, `server\test-support.ts`, `scripts\mobile-isolated.ts`, `scripts\contract.ts` |
+| Handwritten records | `server\handwriting.ts`, `server\handwriting-web.ts`, `server\blobs.ts`, `server\history.ts`, `server\fixtures.ts`, `shared\handwriting.ts`, `src\handwriting.tsx`, `fixtures\seed-history` |
+| Mobile and scale evidence | `tests\mobile-api.test.ts`, `tests\handwriting-browser.test.ts`, `scripts\load-test.ts`, `scripts\verify-upgrade.ts` |
+| Release isolation | `scripts\release.mjs`, `scripts\backup.mjs`, `Start-Candidate.ps1`, `Start-Release.ps1`, `Start-Tunnel.ps1` |
 
 Original PRDs/session archives are read-only source references outside this project. They, their media, actual records and any real credentials were not copied here.
