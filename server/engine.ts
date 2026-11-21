@@ -9,6 +9,7 @@ import { commerceCommand } from './commerce.js';
 import { careCommand } from './care.js';
 import { servicesCommand } from './services.js';
 import { documentCommand } from './documents.js';
+import { handwritingCommand } from './handwriting.js';
 
 function validateField(field: Field, value: unknown) {
   const empty = value === undefined || value === null || value === '';
@@ -43,7 +44,7 @@ function validateField(field: Field, value: unknown) {
       if (field.kind === 'time') requireThat(/^([01]\d|2[0-3]):[0-5]\d$/.test(value), `${field.label} must be a valid time.`);
   }
 }
-const clinicalTypes = new Set(['patient', 'visit', 'history', 'allergy', 'vital', 'note', 'rx', 'order', 'sample', 'result', 'review', 'referral', 'admission', 'wardOrder', 'discharge', 'round', 'nursing', 'administration', 'question', 'document', 'abha', 'mortuary', 'consent', 'certificate', 'coding', 'claim', 'bill', 'payment', 'refund', 'dispense', 'return', 'packageRun']);
+const clinicalTypes = new Set(['patient', 'visit', 'history', 'allergy', 'vital', 'note', 'rx', 'order', 'sample', 'result', 'review', 'referral', 'admission', 'wardOrder', 'discharge', 'round', 'nursing', 'administration', 'question', 'document', 'abha', 'mortuary', 'consent', 'certificate', 'coding', 'claim', 'bill', 'payment', 'refund', 'dispense', 'return', 'packageRun', 'handwrittenDocument', 'handwritingDelivery', 'investigationResult']);
 export function auditSafe(entity: Entity | undefined): unknown {
   if (!entity) return null;
   if (clinicalTypes.has(entity.type)) return { id: entity.id, type: entity.type, version: entity.version, status: entity.status, patientId: entity.patientId, doctorId: entity.doctorId, department: entity.department };
@@ -113,7 +114,7 @@ export function execute(store: Store, actor: Actor, name: string, request: Comma
   }
   return store.transact(() => {
     const ctx = new Context(store, { ...actor, role: effectiveRole }, request, def.target ? anchor : undefined);
-    const handled = [clinicalCommand, adminCommand, commerceCommand, careCommand, servicesCommand, documentCommand].some(handler => handler(name, ctx));
+    const handled = [clinicalCommand, adminCommand, commerceCommand, careCommand, servicesCommand, documentCommand, handwritingCommand].some(handler => handler(name, ctx));
     if (!handled) throw new DomainError(501, 'NOT_IMPLEMENTED', 'This workflow has not been implemented. No changes were saved.');
     const entities = [...new Set(ctx.touched)].map(id => store.get(id));
     store.audit(actor.id, effectiveRole, name, anchor?.id ?? entities[0]?.id ?? actor.id, auditSafe(anchor), entities.map(auditSafe), text(request.payload, 'reason'));

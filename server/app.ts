@@ -18,8 +18,10 @@ import { snapshot, report, csv } from './reporting.js';
 import { scheduledChecks } from './admin.js';
 import { makePdf, validateUploadedFile } from './documents.js';
 import { mobileRouter } from './mobile-api.js';
+import { testSupportRouter } from './test-support.js';
+import { demoIds } from './personas.js';
+import { forgetSecret } from './blobs.js';
 
-const demoIds = ['doctor-a', 'doctor-b', 'resident', 'super', 'super-two', 'admin', 'head', 'it', 'auditor', 'desk', 'cashier', 'desk-cashier', 'pharmacy', 'store', 'nurse', 'lab', 'verifier', 'ot', 'mrd', 'services', 'services-two', 'manager', 'manager-two', 'family', 'other-family'];
 const escape = (text: string) => text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
 function fieldSchema(field: Field): Data {
   const schema: Data = { title: field.label, description: field.help || field.label };
@@ -131,6 +133,7 @@ export function createApplication(options: { database: string; dist?: string; te
   });
   const limits = new Map<string, { started: number; count: number }>();
   app.use('/api/mobile/v1', mobileRouter(store, { relaxedLimits: options.relaxedLimits || options.test, testSupport: options.testSupport }));
+  if (options.testSupport) app.use('/api/test-support', testSupportRouter(store));
   app.use('/api', (req, res, next) => {
     if (options.test || options.relaxedLimits) return next();
     const ip = String(req.headers['cf-connecting-ip'] ?? req.socket.remoteAddress);
@@ -402,8 +405,9 @@ export function createApplication(options: { database: string; dist?: string; te
     requireThat(req.body.confirm === 'RESET SHARED SYNTHETIC DATA', 'Type RESET SHARED SYNTHETIC DATA to confirm. All testers will be signed out.');
     const previousAudit = store.revision();
     store.transact(() => {
-      for (const table of ['entities', 'entity_versions', 'users', 'sessions', 'receipts', 'settings', 'auth_challenges']) store.db.exec(`DELETE FROM ${table}`);
+      for (const table of ['entities', 'entity_versions', 'users', 'sessions', 'receipts', 'settings', 'auth_challenges', 'blobs', 'blob_refs', 'feed_events', 'mobile_tokens', 'mobile_idempotency', 'mobile_otp']) store.db.exec(`DELETE FROM ${table}`);
     });
+    forgetSecret(store);
     seed(store); migrate(store);
     store.audit(actor.id, actor.role, 'demo.explicitReset', 'synthetic', null, { previousAuditEntries: previousAudit, priorAuditRetained: true });
     res.clearCookie('samford_actor', { path: '/' }); res.json({ reset: true, message: 'Shared synthetic records reset; prior audit retained. Local encrypted drafts were not silently deleted.' });

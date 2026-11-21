@@ -26,6 +26,22 @@ export function setCookie(req: Request, res: Response, name: string, value: stri
   res.cookie(name, value, { httpOnly: true, sameSite: 'strict', secure: req.headers['x-forwarded-proto'] === 'https' || req.secure, path: '/', maxAge });
 }
 export type Session = { actorId: string; createdAt: string; lastAt: string; restricted: boolean; locked: boolean; deviceId: string; role: string; roles?: Role[]; key: string };
+// One patient-portal identity per mobile; all active patients registered with that mobile are its family profiles.
+export function ensurePatientFamily(store: Store, mobile: string, patientIds: string[]): Actor {
+  const existing = store.patientAccountByMobile(mobile);
+  if (existing) {
+    const missing = patientIds.filter(id => !existing.patientIds.includes(id));
+    if (missing.length) { existing.patientIds = [...existing.patientIds, ...missing]; store.savePerson(existing); }
+    return existing;
+  }
+  const id = `family-${randomUUID()}`;
+  const actor: Actor = { id, name: 'Synthetic patient family', role: 'patient', roles: ['patient'], department: 'general', state: 'Active', login: id, staffId: id,
+    mobile, patientIds: [...patientIds], verifier: false, profileConfirmed: true, temporary: false, counter: 'Online', appVersion: 1, preferences: {} };
+  store.savePerson(actor, credential(randomBytes(32).toString('base64url')));
+  store.create('account', { name: actor.name, role: 'patient', roles: ['patient'] }, 'System', { id, status: 'Active' });
+  store.audit('System', 'system', 'patient.portalIdentity', id, null, { linkedRecordCount: patientIds.length });
+  return actor;
+}
 export class Auth {
   constructor(public store: Store) {}
   private saveSession(key: string, session: Session) {
@@ -184,5 +200,6 @@ export class Auth {
     for (const row of this.store.db.prepare('SELECT token,body FROM sessions').all()) {
       if ((JSON.parse(String(row.body)) as Session).actorId === actorId) this.store.db.prepare('DELETE FROM sessions WHERE token=?').run(String(row.token));
     }
+    this.store.db.prepare('UPDATE mobile_tokens SET revoked_at=? WHERE actor_id=? AND revoked_at IS NULL').run(this.store.now(), actorId);
   }
 }

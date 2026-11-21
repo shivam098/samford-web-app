@@ -79,7 +79,7 @@ const datePlus = (now: string, days: number) => istDate(new Date(new Date(now).g
 test('all 87 journeys and declared commands are uniquely mapped to actual handlers', () => {
   assert.equal(journeys.length, 87); assert.equal(new Set(journeys.map(j => j.id)).size, 87);
   assert.equal(new Set(commands.map(c => c.name)).size, commands.length);
-  const source = ['clinical', 'admin', 'commerce', 'care', 'services', 'documents'].map(f => readFileSync(join('server', `${f}.ts`), 'utf8')).join('\n');
+  const source = ['clinical', 'admin', 'commerce', 'care', 'services', 'documents', 'handwriting'].map(f => readFileSync(join('server', `${f}.ts`), 'utf8')).join('\n');
   for (const command of commands) { assert.ok(source.includes(`case '${command.name}'`), `Missing handler ${command.name}`); assert.ok(command.journeys.every(id => journeys.some(j => j.id === id))); }
 });
 

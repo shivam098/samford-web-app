@@ -55,8 +55,10 @@ test('explicit synthetic reset rebuilds current role and payer fixtures without 
     await superuser.request('/api/demo/reset', 'POST', { confirm: 'RESET SHARED SYNTHETIC DATA' });
     await dual.request('/api/state', 'GET', undefined, 401); await dual.login();
     assert.deepEqual(h.store.person('desk-cashier').roles, ['desk', 'cashier']);
-    assert.equal(h.store.setting('schemaVersion', 0), 2);
+    assert.equal(h.store.setting('schemaVersion', 0), 3);
     assert.equal(h.store.get('scheme-ayushman-admission').status, 'Active');
+    assert.equal(h.store.get('visit-history-a').status, 'Done', 'seeded handwritten history is rebuilt');
+    assert.equal(h.store.db.prepare('SELECT COUNT(*) AS n FROM mobile_tokens').get()!.n, 0);
     for (const audit of earlier) assert.ok(h.store.audits().some(entry => entry.seq === audit.seq));
   } finally { await h.close(); }
 });

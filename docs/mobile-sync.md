@@ -95,7 +95,7 @@ Linux (GitHub Actions):
 - Send `Authorization: Bearer <token>` **and** `X-Device-Id: <deviceId>` on every authenticated request. The device ID must equal the one used at sign-in, otherwise `401 DEVICE_MISMATCH`. Generate a random device ID once per installation and keep it.
 - Cookies are never accepted on mobile routes. Tokens are opaque; store them in Android Keystore-backed storage and never log them.
 - `GET /session` validates a token. `DELETE /session` revokes it.
-- `401` codes: `AUTH_REQUIRED`, `TOKEN_INVALID`, `TOKEN_EXPIRED`, `DEVICE_MISMATCH`, `ACCESS_REVOKED` (account suspended or deactivated by an administrator), `DEVICE_SIGNED_OUT` (IT signed out this device on the web admin portal). After any 401, keep local unsent work and ask the user to sign in again; never discard it.
+- `401` codes: `AUTH_REQUIRED`, `TOKEN_INVALID`, `TOKEN_EXPIRED`, `DEVICE_MISMATCH`, `ACCESS_REVOKED` (account suspended or deactivated by an administrator), `DEVICE_SIGNED_OUT` (IT signed out this device on the web admin portal). After any 401, keep local unsent work and ask the user to sign in again; never discard it. Suspension also revokes existing tokens, so after reactivation an old token returns `TOKEN_INVALID`; a token issued before an IT sign-out stays `DEVICE_SIGNED_OUT` even after the doctor signs in again.
 - Doctor sign-ins appear on the web admin device list and as app activity, not attendance.
 - OTP: 6 digits, valid 5 minutes. One request per 30 seconds per mobile, 3 per 10 minutes, 10 per day; 20 per 10 minutes per IP (`429 OTP_RATE_LIMITED` with `Retry-After`). Three wrong codes invalidate the challenge and lock the mobile for 30 minutes (`429 OTP_LOCKED`), shared with the web patient portal. An unregistered mobile returns `404 MOBILE_NOT_REGISTERED`.
 
@@ -144,6 +144,8 @@ Routing rules (`422 ROUTING_INVALID`): `pharmacy: true` only for `PRESCRIPTION`;
 
 Any recipient of an earlier version becomes `SUPERSEDED` when an addendum is signed, and the new version is delivered as `AVAILABLE`. `PENDING` may be used by the tablet locally before upload but is never sent by the server. Dispensing and result entry are recorded by pharmacy and lab staff on the web desks; pharmacy stock and billing for handwritten prescriptions are outside this mock.
 
+Lab results for a handwritten request follow the hospital's independent-verification rule (SJ15): a lab technician of the routed lab enters each result, and the copy becomes `RESULT_READY` (and the result visible to the doctor and patient) only when a **different** lab user with verifier rights releases it. The handwritten-request lab path has no barcode or billing step in this mock. A partially dispensed prescription can later become `DISPENSED`; `NOT_DISPENSED` needs a note for the doctor and patient.
+
 ## 9. Feeds, polling and caching
 
 - `GET /doctor/events` and `GET /patient/profiles/{profileId}/feed` return events oldest first. Omit `cursor` to start from the beginning; then always send `nextCursor`. `limit` is 1-500 (default 100). `hasMore: true` means fetch again immediately.
@@ -168,10 +170,11 @@ Any recipient of an earlier version becomes `SUPERSEDED` when an addendum is sig
 | Doctor (author) | Own signed documents, their versions, delivery states and lab results, always |
 | Doctor (treating) | The full record of a patient with a care relationship: a waiting, called, in-consultation or on-hold visit, or one completed in the last 7 days, with that doctor. Every record read is audited. Otherwise `403 CARE_RELATIONSHIP_REQUIRED`. |
 | Pharmacy (web) | Prescriptions routed to the pharmacy only |
-| Lab (web) | Investigations routed to that lab only |
+| Lab (web) | Investigations routed to that lab only; results it entered |
+| Medical records (web) | Visit summaries, for coding the visit |
 | Patient | Documents routed to the patient for profiles registered with the account's mobile, released results and own visits |
 
-Blob access is derived from the documents that reference the blob. Doctors can also read blobs they uploaded but have not yet committed. Administrators cannot read clinical documents.
+Blob access is derived from the documents that reference the blob. Doctors can also read blobs they uploaded but have not yet committed. Administrators, the front desk and other staff cannot read handwritten clinical documents.
 
 ## 12. Errors
 
@@ -202,7 +205,7 @@ Blob access is derived from the documents that reference the blob. Doctors can a
 With `--test-support`, these unauthenticated shortcuts help E2E tests drive the web roles:
 
 - `POST /api/test-support/visits` `{doctorId, patientId?, patient?: {name, age, sex, mobile}}` books and checks in a visit for today through the normal front-desk rules. Returns `{visitId, patientId, token}`.
-- `POST /api/test-support/deliveries` `{documentId, recipient: "PHARMACY"|"LAB"|"PATIENT", labId?, state, note?, result?: {testName, value, unit?, refRange?, flag?}}` performs the pharmacy, lab or patient action through the same rules as the web desks.
+- `POST /api/test-support/deliveries` `{documentId, recipient: "PHARMACY"|"LAB"|"PATIENT", labId?, state, note?, result?: {testName, value, unit?, refRange?, flag?}}` performs the pharmacy, lab or patient action through the same web commands and rules as the desks, on the latest version. Intermediate steps are performed as needed: `RESULT_READY` views, records sample collection, enters the result as that lab's technician and releases it as the seeded independent verifier. Returns `{documentId, delivery}`.
 - `POST /api/test-support/clock` `{minutes}` advances the synthetic clock (token expiry, OTP lock, 7-day care window).
 
 ## 14. Limits
@@ -214,5 +217,22 @@ With `--test-support`, these unauthenticated shortcuts help E2E tests drive the 
 ## 15. Versioning
 
 - The major version is in the path (`/api/mobile/v1`). Within v1 the server only adds optional fields, endpoints, event types and enum values. Breaking changes require `/api/mobile/v2` and a coordinated app release.
-- `GET /meta` returns `apiVersion` (semantic) and the minimum app versions also published in discovery.
-- Change log: 1.0.0 (2026-11-21) initial contract.
+- `GET /meta` returns `apiVersion` (semantic) and the minimum app versions also published in discovery. Minimum versions are integer Android `versionCode`s.
+- Change log: 1.0.0 (2026-11-21) initial contract; server 0.3.0 implements every v1 operation.
+
+## 16. Seeded synthetic data
+
+Every fresh or reset database contains the same synthetic records. Dates are relative to when the database was created.
+
+| Item | Seeded value |
+|---|---|
+| Doctor personas | `doctor-a` (General medicine), `doctor-b` (Surgery), `doctor-c` (General medicine; author of the seeded history) |
+| doctor-a's queue today | `visit-a`: patient-a, token 1, `WAITING`, returning, Penicillin allergy. `visit-b`: patient-b, token 2, `WAITING`, returning. `visit-video`: patient-child, `BOOKED` (not checked in) |
+| doctor-b's queue today | `visit-c`: patient-c, token 1, `WAITING` |
+| Labs | `central-lab` (Central pathology lab, `PATHOLOGY`), `radiology` (Radiology, `IMAGING`) |
+| Patient mobiles | `9000000001`: patient-a and patient-child. `9000000002`: patient-b. `9000000003`: patient-c |
+| History, 21 days ago | `visit-history-a` (doctor-c, patient-a): 2-page visit summary; prescription dispensed and viewed; investigations to central-lab with a released, verified CBC result flagged `ABNORMAL` |
+| History, 14 days ago | `visit-history-b` (doctor-c, patient-b): visit summary; prescription version 1 superseded by a version 2 addendum ("Corrected dose and duration"), version 2 dispensed and not yet viewed by the patient |
+| Web desk personas | `pharmacy` (pharmacist), `lab` (central-lab technician), `radiology` (radiology technician), `verifier` (verifier for both labs), `desk`, `mrd` |
+
+Seeded pages are deterministic 1500x2121 PNGs with a visible "SYNTHETIC SAMPLE - NOT FOR CLINICAL USE" banner, the PDFs embed exactly those pixels, and the ink uses the placeholder format `samford-ink-placeholder/0` until fixtures in `samford-ink/1` replace them. The server never modifies uploaded blobs, so the doctor app must draw the same visible synthetic banner on its own pages and PDFs.

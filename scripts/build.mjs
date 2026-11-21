@@ -1,6 +1,7 @@
 import { build } from 'esbuild';
-import { mkdir, writeFile, copyFile } from 'node:fs/promises';
+import { mkdir, writeFile, copyFile, readFile } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
+const { version } = JSON.parse(await readFile('package.json', 'utf8'));
 const outdir = resolve('dist-candidate');
 await mkdir(outdir, { recursive: true });
 await build({
@@ -15,5 +16,5 @@ await writeFile(join(outdir, 'index.html'), `<!doctype html>
 <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#153d3a"><title>Samford | Workflow lab</title><link rel="stylesheet" href="/main.css"></head>
 <body><div id="root"></div><script src="/main.js" defer></script></body></html>`);
-await writeFile(join(outdir, 'build.json'), JSON.stringify({ version: '0.2.0', builtAt: new Date().toISOString() }));
+await writeFile(join(outdir, 'build.json'), JSON.stringify({ version, builtAt: new Date().toISOString() }));
 console.log('Built candidate frontend in dist-candidate. The running dist directory was not changed.');

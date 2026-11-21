@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import type { Actor, Data, Entity, Receipt } from '../shared/model.js';
+import { visitStatusCode, patientVisitMessage } from '../shared/handwriting.js';
 
 export class DomainError extends Error {
   constructor(public status: number, public code: string, message: string, public current?: Entity) { super(message); }
@@ -24,7 +25,23 @@ export class Store {
       CREATE TABLE IF NOT EXISTS receipts(actor TEXT, operation TEXT, hash TEXT, body TEXT, PRIMARY KEY(actor,operation));
       CREATE TABLE IF NOT EXISTS audit(seq INTEGER PRIMARY KEY AUTOINCREMENT, body TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, body TEXT NOT NULL);
-      CREATE TABLE IF NOT EXISTS auth_challenges(id TEXT PRIMARY KEY, body TEXT NOT NULL);`);
+      CREATE TABLE IF NOT EXISTS auth_challenges(id TEXT PRIMARY KEY, body TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS entities_type_patient ON entities(type, json_extract(body,'$.patientId'));
+      CREATE INDEX IF NOT EXISTS entities_type_doctor_date ON entities(type, json_extract(body,'$.doctorId'), json_extract(body,'$.data.date'));
+      CREATE INDEX IF NOT EXISTS entities_type_mobile ON entities(type, json_extract(body,'$.data.mobile'));
+      CREATE INDEX IF NOT EXISTS entities_type_document ON entities(type, json_extract(body,'$.data.documentId'));
+      CREATE INDEX IF NOT EXISTS users_mobile ON users(json_extract(body,'$.mobile'));
+      CREATE TABLE IF NOT EXISTS blobs(sha256 TEXT PRIMARY KEY, media_type TEXT NOT NULL, size INTEGER NOT NULL, width INTEGER, height INTEGER, created_at TEXT NOT NULL, created_by TEXT NOT NULL, bytes BLOB NOT NULL);
+      CREATE TABLE IF NOT EXISTS blob_refs(sha256 TEXT NOT NULL, document_entity_id TEXT NOT NULL, role TEXT NOT NULL, PRIMARY KEY(sha256, document_entity_id, role));
+      CREATE INDEX IF NOT EXISTS blob_refs_document ON blob_refs(document_entity_id);
+      CREATE TABLE IF NOT EXISTS feed_events(seq INTEGER PRIMARY KEY AUTOINCREMENT, audience TEXT NOT NULL, type TEXT NOT NULL, at TEXT NOT NULL, body TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS feed_events_audience ON feed_events(audience, seq);
+      CREATE TABLE IF NOT EXISTS mobile_tokens(token_hash TEXT PRIMARY KEY, kind TEXT NOT NULL, actor_id TEXT NOT NULL, device_id TEXT NOT NULL, mobile TEXT NOT NULL, created_at TEXT NOT NULL, expires_at TEXT NOT NULL, last_used_at TEXT NOT NULL, revoked_at TEXT);
+      CREATE INDEX IF NOT EXISTS mobile_tokens_actor ON mobile_tokens(actor_id);
+      CREATE TABLE IF NOT EXISTS mobile_idempotency(scope TEXT NOT NULL, key TEXT NOT NULL, fingerprint TEXT NOT NULL, status INTEGER NOT NULL, body TEXT NOT NULL, encrypted INTEGER NOT NULL, permanent INTEGER NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(scope, key));
+      CREATE TABLE IF NOT EXISTS mobile_otp(id TEXT PRIMARY KEY, mobile TEXT NOT NULL, ip TEXT NOT NULL, device_id TEXT NOT NULL, code_hash TEXT NOT NULL, created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, failures INTEGER NOT NULL, consumed INTEGER NOT NULL);
+      CREATE INDEX IF NOT EXISTS mobile_otp_mobile ON mobile_otp(mobile, created_at);
+      CREATE INDEX IF NOT EXISTS mobile_otp_ip ON mobile_otp(ip, created_at);`);
   }
   now() { return new Date(Date.now() + this.setting<number>('clockOffset', 0)).toISOString(); }
   all(type?: string): Entity[] {
@@ -39,9 +56,44 @@ export class Store {
     return entity;
   }
   put(entity: Entity) {
+    const previous = entity.type === 'visit' ? this.db.prepare('SELECT body FROM entities WHERE id=?').get(entity.id) : undefined;
     this.db.prepare('INSERT INTO entities(id,type,body) VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET body=excluded.body').run(entity.id, entity.type, JSON.stringify(entity));
     this.db.prepare('INSERT OR IGNORE INTO entity_versions VALUES(?,?,?)').run(entity.id, entity.version, JSON.stringify(entity));
+    if (entity.type === 'visit') this.visitChanged(previous ? JSON.parse(String(previous.body)) as Entity : undefined, entity);
     return entity;
+  }
+  private visitChanged(before: Entity | undefined, visit: Entity) {
+    const keys = (entity: Entity) => JSON.stringify([entity.status, entity.doctorId, entity.data.token, entity.data.date, entity.data.time, entity.data.priority]);
+    if (before && keys(before) === keys(visit)) return;
+    const status = visitStatusCode(visit.status);
+    const token = status !== 'BOOKED' && typeof visit.data.token === 'number' && visit.data.token > 0 ? visit.data.token : null;
+    const data = { status, token, date: visit.data.date ?? null, time: visit.data.time ?? null };
+    const tokenText = token ? `token ${token}` : 'an appointment';
+    if (visit.doctorId) this.emit(`doctor:${visit.doctorId}`, 'QUEUE_UPDATED', { message: `Queue updated: ${tokenText} is ${status.toLowerCase().replaceAll('_', ' ')}.`, visitId: visit.id, patientId: visit.patientId ?? null, data });
+    if (before?.doctorId && before.doctorId !== visit.doctorId) this.emit(`doctor:${before.doctorId}`, 'QUEUE_UPDATED', { message: 'A visit moved to another doctor.', visitId: visit.id, patientId: visit.patientId ?? null, data: { ...data, status: 'CANCELLED' } });
+    if (visit.patientId) this.emit(`patient:${visit.patientId}`, 'VISIT_UPDATED', {
+      message: patientVisitMessage(status, token, String(visit.data.date ?? ''), String(visit.data.time ?? '')), visitId: visit.id, patientId: visit.patientId, data,
+      notify: status === 'CALLED' && before?.status !== 'Called' ? { title: 'Token called', body: token ? `Token ${token} is being called. Please go to the doctor's room.` : 'You are being called.' } : undefined
+    });
+  }
+  emit(audience: string, type: string, event: { message: string; visitId?: string | null; documentId?: string | null; patientId?: string | null; data?: Data; notify?: { title: string; body: string } }) {
+    this.db.prepare('INSERT INTO feed_events(audience,type,at,body) VALUES(?,?,?,?)').run(audience, type, this.now(),
+      JSON.stringify({ message: event.message, visitId: event.visitId ?? null, documentId: event.documentId ?? null, patientId: event.patientId ?? null, data: event.data ?? {}, ...(event.notify ? { notify: event.notify } : {}) }));
+  }
+  query(type: string, field: 'patientId' | 'documentId' | 'mobile', value: string): Entity[] {
+    const expression = { patientId: "json_extract(body,'$.patientId')", documentId: "json_extract(body,'$.data.documentId')", mobile: "json_extract(body,'$.data.mobile')" }[field];
+    return this.db.prepare(`SELECT body FROM entities WHERE type=? AND ${expression}=?`).all(type, value).map(row => JSON.parse(String(row.body)) as Entity);
+  }
+  visitsFor(doctorId: string, date: string): Entity[] {
+    return this.db.prepare("SELECT body FROM entities WHERE type='visit' AND json_extract(body,'$.doctorId')=? AND json_extract(body,'$.data.date')=?").all(doctorId, date).map(row => JSON.parse(String(row.body)) as Entity);
+  }
+  count(type: string) { return Number(this.db.prepare('SELECT COUNT(*) AS n FROM entities WHERE type=?').get(type)?.n ?? 0); }
+  maybe(id: string): Entity | undefined {
+    const row = this.db.prepare('SELECT body FROM entities WHERE id=?').get(id);
+    return row ? JSON.parse(String(row.body)) as Entity : undefined;
+  }
+  patientAccountByMobile(mobile: string): Actor | undefined {
+    return this.db.prepare("SELECT body FROM users WHERE json_extract(body,'$.mobile')=?").all(mobile).map(row => JSON.parse(String(row.body)) as Actor).find(actor => actor.role === 'patient');
   }
   create(type: string, data: Data, actor: string, extra: Partial<Entity> = {}) {
     const now = this.now();

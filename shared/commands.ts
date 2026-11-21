@@ -407,6 +407,17 @@ export const commands: CommandDef[] = [
     f('value', 'Corrected value', 'number'), opt('narrative', 'Corrected narrative', 'textarea'), reason
   ], 'Preserves old release/review and requires a fresh independent verification.', 'result', ['Released']),
   c('result.call', 'Record critical-result call', ['SJ15'], ['lab'], [f('contact', 'Doctor / ward contacted'), f('note', 'Call outcome', 'textarea')], 'Does not impersonate a doctor review.', 'result', ['Released']),
+  c('handwriting.view', 'Open handwritten copy', ['SJ10', 'SJ14', 'SJ36'], ['pharmacist', 'lab', 'patient'], [], 'Records that this recipient opened the exact signed handwriting; the doctor sees Viewed.', 'handwritingDelivery', ['Available']),
+  c('handwriting.dispense', 'Record handwritten Rx dispensing', ['SJ10'], ['pharmacist'], [
+    select('outcome', 'Outcome', ['Dispensed', 'Partially dispensed', 'Not dispensed']), opt('note', 'Note for doctor and patient (required unless fully dispensed)', 'textarea')
+  ], 'Status only in this mock: stock and billing for handwritten prescriptions stay outside it. The doctor and patient see the outcome.', 'handwritingDelivery', ['Viewed', 'Partially dispensed']),
+  c('handwriting.sample', 'Record sample collected', ['SJ14'], ['lab'], [yes('confirmed', 'Patient identity and the handwritten tests confirmed'), opt('note', 'Collection note', 'textarea')],
+    'Simplified handwritten-request path: no barcode or billing step in this mock.', 'handwritingDelivery', ['Viewed']),
+  c('handwriting.result', 'Enter result for handwritten request', ['SJ15'], ['lab'], [
+    f('testName', 'Test'), f('value', 'Result value'), opt('unit', 'Unit'), opt('refRange', 'Reference range'), select('flag', 'Flag', ['Normal', 'Abnormal', 'Critical']), opt('summary', 'Interpretation / remarks', 'textarea')
+  ], 'Entry is not release. A different verifier must verify before the doctor and patient see it.', 'handwritingDelivery', ['Sample collected', 'Result ready']),
+  c('handwriting.verify', 'Verify and release handwritten-request results', ['SJ15'], ['lab'], [yes('confirmed', 'I checked the entered results against the sample and the handwritten request')],
+    'Requires verifier rights and a different person from the entry author. Releases to the doctor tablet and patient app.', 'handwritingDelivery', ['Sample collected', 'Result ready']),
   c('admission.emergency', 'Register emergency admission', ['SJ16'], ['desk', 'nurse', 'manager'], [
     patient, doctor, select('category', 'Ward category', ['General', 'Private', 'ICU']), f('diagnosis', 'Doctor / emergency request'),
     f('relative', 'Synthetic relative'), f('relativeMobile', 'Synthetic relative mobile')

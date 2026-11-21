@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { doctorRoles, adminRoles, actorRoles, hasRole, text, num, bool, strings, istDate, type Actor, type Data, type Entity, type CommandRequest, type Snapshot } from '../shared/model.js';
+import { actorLabIds, routingFrom } from '../shared/handwriting.js';
 import { Store, requireThat } from './store.js';
 
 const staffRead: Record<string, string[]> = {
@@ -14,8 +15,8 @@ const staffRead: Record<string, string[]> = {
   services: ['bed', 'diet', 'trip', 'vehicle', 'mortuary', 'cabinet', 'asset', 'facility'],
   manager: ['patient', 'visit', 'availability', 'followup', 'presence', 'board', 'document', 'bill', 'payment', 'claim', 'refund', 'counterClose', 'requisition', 'purchase', 'grn', 'stockTransfer', 'vendor', 'asset', 'batch', 'writeoff', 'stockCount', 'itemPrice', 'catalogRequest', 'admission', 'bed', 'discharge', 'daycare', 'register', 'consent', 'certificate', 'packageRun', 'trip', 'vehicle', 'diet', 'facility', 'coding', 'hospitalDocument', 'enquiry', 'feedback', 'message', 'approval', 'job', 'jobRun', 'nursing', 'vital', 'administration'],
 };
-const commonCatalog = ['department', 'room', 'session', 'holiday', 'roster', 'test', 'item', 'tariff', 'payer', 'package', 'packageRate', 'letterhead', 'feature', 'homeDefault'];
-const doctorRead = ['patient', 'visit', 'presence', 'availability', 'history', 'allergy', 'document', 'vital', 'note', 'rx', 'order', 'sample', 'result', 'review', 'followup', 'referral', 'admission', 'bed', 'operation', 'round', 'wardOrder', 'administration', 'nursing', 'discharge', 'question', 'video', 'abha', 'help', 'article', 'set', 'template', 'signin', 'message', 'certificate', 'coding', 'correction', 'jobRun', 'announcement', 'handover'];
+const commonCatalog = ['department', 'room', 'session', 'holiday', 'roster', 'test', 'item', 'tariff', 'payer', 'package', 'packageRate', 'letterhead', 'feature', 'homeDefault', 'labUnit'];
+const doctorRead = ['patient', 'visit', 'presence', 'availability', 'history', 'allergy', 'document', 'vital', 'note', 'rx', 'order', 'sample', 'result', 'review', 'followup', 'referral', 'admission', 'bed', 'operation', 'round', 'wardOrder', 'administration', 'nursing', 'discharge', 'question', 'video', 'abha', 'help', 'article', 'set', 'template', 'signin', 'message', 'certificate', 'coding', 'correction', 'jobRun', 'announcement', 'handover', 'handwrittenDocument', 'handwritingDelivery', 'investigationResult'];
 const adminRead = ['account', 'access', 'correction', 'device', 'department', 'room', 'session', 'holiday', 'roster', 'jobRun', 'set', 'template', 'letterhead', 'routing', 'wording', 'feature', 'announcement', 'help', 'article', 'roleApproval', 'import', 'integration', 'test', 'item', 'handover', 'homeDefault'];
 export function covers(actor: Actor, doctorId?: string) {
   return actor.id === doctorId || (actor.role === 'resident' && text(actor.preferences, 'coverDoctor') === doctorId);
@@ -57,6 +58,28 @@ export function patientScope(store: Store, actor: Actor): Set<string> {
 export function visible(store: Store, actor: Actor, entity: Entity): boolean {
   return actorRoles(actor).some(role => visibleRole(store, { ...actor, role, roles: [role] }, entity));
 }
+// Handwritten records: patients see versions routed to them; pharmacy sees routed prescriptions; each lab sees its routed investigations.
+function handwritingVersionFor(store: Store, entity: Entity) {
+  return entity.type === 'handwrittenDocument' ? entity : store.maybe(entity.type === 'handwritingDelivery' ? text(entity.data, 'versionEntityId') : `${text(entity.data, 'documentId')}-v${num(entity.data, 'version')}`);
+}
+function handwritingVisible(store: Store, actor: Actor, entity: Entity): boolean | undefined {
+  if (!['handwrittenDocument', 'handwritingDelivery', 'investigationResult'].includes(entity.type)) return undefined;
+  if (entity.type === 'investigationResult' && entity.status !== 'Released' && actor.role !== 'lab') return false;
+  if (actor.role === 'patient') {
+    const version = handwritingVersionFor(store, entity);
+    return Boolean(entity.patientId && actor.patientIds.includes(entity.patientId) && version && routingFrom(version.data.routing).patient);
+  }
+  if (doctorRoles.includes(actor.role)) return undefined;
+  const routing = routingFrom(entity.data.routing); const labs = actorLabIds(actor);
+  if (entity.type === 'handwrittenDocument') {
+    if (actor.role === 'pharmacist') return text(entity.data, 'type') === 'PRESCRIPTION' && routing.pharmacy;
+    if (actor.role === 'lab') return text(entity.data, 'type') === 'INVESTIGATIONS' && routing.labs.some(lab => labs.includes(lab));
+    if (actor.role === 'mrd') return text(entity.data, 'type') === 'VISIT_SUMMARY';
+    return false;
+  }
+  if (entity.type === 'handwritingDelivery') return (actor.role === 'pharmacist' && text(entity.data, 'recipient') === 'PHARMACY') || (actor.role === 'lab' && text(entity.data, 'recipient') === 'LAB' && labs.includes(text(entity.data, 'labId')));
+  return actor.role === 'lab' && labs.includes(text(entity.data, 'labId'));
+}
 function visibleRole(store: Store, actor: Actor, entity: Entity): boolean {
   if (actor.role === 'auditor') return false;
   if (adminRoles.includes(actor.role)) {
@@ -66,6 +89,8 @@ function visibleRole(store: Store, actor: Actor, entity: Entity): boolean {
     if (actor.role === 'head' && entity.department && entity.department !== actor.department) return false;
     return true;
   }
+  const handwriting = handwritingVisible(store, actor, entity);
+  if (handwriting !== undefined) return handwriting;
   if (commonCatalog.includes(entity.type)) return true;
   if (entity.type === 'hospitalDocument' && entity.status === 'Published' && actor.role !== 'patient') return true;
   if (entity.type === 'article' && entity.status === 'Published') return true;

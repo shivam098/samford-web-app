@@ -8,7 +8,7 @@ import { createServer } from 'node:http';
 import { spawn } from 'node:child_process';
 import { Store } from '../server/store.js';
 import { seed } from '../server/seed.js';
-import { migrate } from '../server/migrate.js';
+import { migrate, migrationSteps } from '../server/migrate.js';
 import { text, type Data } from '../shared/model.js';
 
 function fixture() {
@@ -39,11 +39,36 @@ test('v1 migration preserves original record/version/credential/receipt/audit by
   try {
     seed(store);
     const before = state(store.db); migrate(store); preserved(store.db, before);
-    assert.equal(store.setting('schemaVersion', 0), 2);
+    assert.equal(store.setting('schemaVersion', 0), 3);
     assert.deepEqual(store.person('desk-cashier').roles, ['desk', 'cashier']);
     const after = state(store.db); const accounts = store.db.prepare("SELECT body FROM entities WHERE type='account' ORDER BY id").all();
     migrate(store); assert.deepEqual(state(store.db), after);
     assert.deepEqual(store.db.prepare("SELECT body FROM entities WHERE type='account' ORDER BY id").all(), accounts);
+  } finally { store.close(); f.clean(); }
+});
+test('v2 database upgrades to v3 additively: original bytes kept, labs, personas and handwritten history added once', () => {
+  const f = fixture(); const store = new Store(f.path);
+  try {
+    seed(store);
+    store.transact(() => { migrationSteps.migrateToV2(store, 1); store.set('schemaVersion', 2); });
+    const before = state(store.db); const users = store.db.prepare('SELECT id,body FROM users ORDER BY id').all();
+    migrate(store); preserved(store.db, before);
+    assert.equal(store.setting('schemaVersion', 0), 3);
+    for (const row of users) {
+      const now = JSON.parse(String(store.db.prepare('SELECT body FROM users WHERE id=?').get(row.id!)!.body)); const old = JSON.parse(String(row.body));
+      if (['lab', 'verifier'].includes(String(row.id))) { delete now.labIds; assert.deepEqual(now, old); } else assert.deepEqual(now, old);
+    }
+    assert.deepEqual(store.person('lab').labIds, ['central-lab']); assert.deepEqual(store.person('verifier').labIds, ['central-lab', 'radiology']);
+    assert.equal(store.person('doctor-c').role, 'doctor'); assert.deepEqual(store.person('radiology').labIds, ['radiology']);
+    assert.deepEqual(store.all('labUnit').map(lab => text(lab.data, 'labId')).sort(), ['central-lab', 'radiology']);
+    assert.equal(store.get('visit-history-a').status, 'Done'); assert.equal(store.get('visit-history-b').status, 'Done');
+    assert.equal(store.all('handwrittenDocument').length, 6); assert.equal(store.all('investigationResult').filter(result => result.status === 'Released').length, 1);
+    assert.equal(store.all('coding').length, 0, 'seeded history creates no coding work');
+    const orphans = store.db.prepare('SELECT COUNT(*) AS n FROM blob_refs r LEFT JOIN blobs b ON b.sha256=r.sha256 WHERE b.sha256 IS NULL').get()!;
+    assert.equal(Number(orphans.n), 0);
+    assert.ok(store.audits().some(entry => entry.action === 'schema.migrate' && entry.target === 'v3'));
+    const after = state(store.db); const events = store.db.prepare('SELECT COUNT(*) AS n FROM feed_events').get()!.n;
+    migrate(store); assert.deepEqual(state(store.db), after); assert.equal(store.db.prepare('SELECT COUNT(*) AS n FROM feed_events').get()!.n, events);
   } finally { store.close(); f.clean(); }
 });
 test('unsupported identities roll migration back, and newer databases are refused', () => {

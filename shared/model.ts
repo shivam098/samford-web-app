@@ -25,6 +25,7 @@ export type Entity = {
 export type Actor = {
   id: string; name: string; role: Role; department: string; state: string;
   roles?: Role[];
+  labIds?: string[];
   login: string; staffId: string; mobile: string; patientIds: string[];
   verifier: boolean; profileConfirmed: boolean; temporary: boolean;
   counter: string; appVersion: number; preferences: Data;

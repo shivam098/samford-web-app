@@ -1,0 +1,2 @@
+// Explicit public demo personas. Only these can be chosen without onboarding on the web or the doctor tablet.
+export const demoIds = ['doctor-a', 'doctor-b', 'doctor-c', 'resident', 'super', 'super-two', 'admin', 'head', 'it', 'auditor', 'desk', 'cashier', 'desk-cashier', 'pharmacy', 'store', 'nurse', 'lab', 'verifier', 'radiology', 'ot', 'mrd', 'services', 'services-two', 'manager', 'manager-two', 'family', 'other-family'];

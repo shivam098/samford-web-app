@@ -117,7 +117,7 @@ export const hi: Record<string, string> = {
   'Update simulated call': 'नमूना कॉल की स्थिति बदलें', 'Request simulated ABHA OTP': 'नमूना ABHA OTP माँगें', 'Verify ABHA OTP': 'ABHA OTP जाँचें',
   'Withdraw ABHA sharing consent': 'ABHA साझा करने की सहमति वापस लें', 'Ask the help desk': 'हेल्प डेस्क से सहायता माँगें',
   'Mark guide read / helpful': 'मार्गदर्शिका पढ़ी / उपयोगी दर्ज करें', 'Dismiss announcement for me': 'मेरे लिए घोषणा हटाएँ',
-  'Book appointment': 'अपॉइंटमेंट बुक करें', 'Upload synthetic patient document': 'मरीज़ का नमूना दस्तावेज़ अपलोड करें',
+  'Book appointment': 'अपॉइंटमेंट बुक करें', 'Upload synthetic patient document': 'मरीज़ का नमूना दस्तावेज़ अपलोड करें', 'Open handwritten copy': 'हस्तलिखित प्रति खोलें',
   'Receive payment (simulated)': 'भुगतान दर्ज करें (अनुकरण)', 'Record patient feedback': 'मरीज़ की प्रतिक्रिया दर्ज करें',
   'Retry failed message': 'विफल संदेश दोबारा भेजें', 'Save WhatsApp choices': 'व्हाट्सऐप की पसंद सहेजें', 'Choose display and print language': 'ऐप और प्रिंट की भाषा चुनें',
   'Home': 'होम', 'Patients': 'मरीज़', 'Calendar': 'कैलेंडर', 'More': 'और', 'Notifications': 'सूचनाएँ', 'Doctor workspace': 'डॉक्टर कार्यस्थल',
