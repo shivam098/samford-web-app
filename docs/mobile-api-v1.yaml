@@ -1,0 +1,2852 @@
+# GENERATED from shared/mobile-contract.ts by "npm run contract". Edit the TypeScript source, not this file.
+openapi: 3.1.0
+jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
+info:
+  title: Samford paperless OPD mobile API (synthetic mock backend)
+  version: 1.0.0
+  description: "Contract for the Samford doctor tablet and patient Android apps. PUBLIC SYNTHETIC DEMO: no real patient data, SMS, payment, clinical signing or production authentication. See docs/mobile-sync.md for synchronization, idempotency, authorization and limits."
+servers:
+  - url: https://{tunnelHost}/api/mobile/v1
+    variables:
+      tunnelHost:
+        default: example.trycloudflare.com
+        description: Read the current apiBaseUrl from the discovery gist.
+  - url: http://10.0.2.2:4320/api/mobile/v1
+    description: Isolated backend reached from an Android emulator.
+tags:
+  - name: Common
+    description: Metadata and token lifecycle shared by both apps.
+  - name: Doctor
+    description: "Doctor tablet: personas, queue, record review, visit completion, addenda and events."
+  - name: Patient
+    description: "Patient app: OTP sign-in, family profiles, records, feeds and notifications."
+  - name: Blobs
+    description: Immutable content-addressed page PNGs, PDFs and ink.
+security:
+  - bearerAuth: []
+paths:
+  /meta:
+    get:
+      operationId: getMeta
+      tags:
+        - Common
+      security: []
+      summary: Server metadata and minimum app versions
+      description: Unauthenticated. Use it to validate a discovered or manually entered base URL.
+      responses:
+        "200":
+          description: Metadata
+          headers:
+            X-Request-Id:
+              description: Request correlation ID.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Meta"
+        "429":
+          $ref: "#/components/responses/E429"
+        "500":
+          $ref: "#/components/responses/E500"
+  /session:
+    get:
+      operationId: getSession
+      tags:
+        - Common
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/DeviceId"
+      summary: Validate the current token
+      responses:
+        "200":
+          description: Session
+          headers:
+            X-Request-Id:
+              description: Request correlation ID.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionInfo"
+        "400":
+          $ref: "#/components/responses/E400"
+        "401":
+          $ref: "#/components/responses/E401"
+        "426":
+          $ref: "#/components/responses/E426"
+        "429":
+          $ref: "#/components/responses/E429"
+    delete:
+      operationId: deleteSession
+      tags:
+        - Common
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/DeviceId"
+      summary: Sign out and revoke this token
+      description: Idempotent; a second call with the already revoked token returns 204.
+      responses:
+        "204":
+          description: Revoked
+        "400":
+          $ref: "#/components/responses/E400"
+        "401":
+          $ref: "#/components/responses/E401"
+  /doctor/personas:
+    get:
+      operationId: listDoctorPersonas
+      tags:
+        - Doctor
+      security: []
+      summary: Synthetic consultant personas
+      description: Public demo personas only, the same identities as the web app. Not production authentication.
+      responses:
+        "200":
+          description: Personas
+          headers:
+            ETag:
+              description: Entity tag of this representation. Send it back as If-None-Match.
+              schema:
+                type: string
+            X-Request-Id:
+              description: Request correlation ID.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PersonaList"
+        "304":
+          description: "Not modified: the If-None-Match tag still matches."
+        "429":
+          $ref: "#/components/responses/E429"
+  /doctor/sessions:
+    post:
+      operationId: createDoctorSession
+      tags:
+        - Doctor
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      summary: Sign in as a demo consultant on this device
+      description: Issues a device-bound bearer token. Replaying the same Idempotency-Key and body returns the same token.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DoctorSessionRequest"
+      responses:
+        "201":
+          description: Signed in
+          headers:
+            X-Request-Id:
+              description: Request correlation ID.
+              schema:
+                type: string
+            Idempotent-Replayed:
+              description: Present with value true when the stored original response was replayed.
+              schema:
+                const: "true"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DoctorSession"
+        "400":
+          $ref: "#/components/responses/E400"
+        "404":
+          $ref: "#/components/responses/E404"
+        "422":
+          $ref: "#/components/responses/E422"
+        "426":
+          $ref: "#/components/responses/E426"
+        "429":
+          $ref: "#/components/responses/E429"
+  /doctor/labs:
+    get:
+      operationId: listLabs
+      tags:
+        - Doctor
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/DeviceId"
+        - $ref: "#/components/parameters/IfNoneMatch"
+      summary: Labs available for INVESTIGATIONS routing
+      responses:
+        "200":
+          description: Labs
+          headers:
+            ETag:
+              description: Entity tag of this representation. Send it back as If-None-Match.
+              schema:
+                type: string
+            X-Request-Id:
+              description: Request correlation ID.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LabList"
+        "304":
+          description: "Not modified: the If-None-Match tag still matches."
+        "400":
+          $ref: "#/components/responses/E400"
+        "401":
+          $ref: "#/components/responses/E401"
+        "403":
+          $ref: "#/components/responses/E403"
+        "426":
+          $ref: "#/components/responses/E426"
+        "429":
+          $ref: "#/components/responses/E429"
+  /doctor/queue:
+    get:
+      operationId: getDoctorQueue
+      tags:
+        - Doctor
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/DeviceId"
+        - $ref: "#/components/parameters/IfNoneMatch"
+        - name: date
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/LocalDate"
+          description: Defaults to today in IST.
+      summary: The doctor's queue for a day
+      description: Includes booked, checked-in, active and completed visits. Poll with If-None-Match, or watch QUEUE_UPDATED events.
+      responses:
+        "200":
+          description: Queue
+          headers:
+            ETag:
+              description: Entity tag of this representation. Send it back as If-None-Match.
+              schema:
+                type: string
+            X-Request-Id:
+              description: Request correlation ID.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Queue"
+        "304":
+          description: "Not modified: the If-None-Match tag still matches."
+        "400":
+          $ref: "#/components/responses/E400"
+        "401":
+          $ref: "#/components/responses/E401"
+        "403":
+          $ref: "#/components/responses/E403"
+        "422":
+          $ref: "#/components/responses/E422"
+        "426":
+          $ref: "#/components/responses/E426"
+        "429":
+          $ref: "#/components/responses/E429"
+  /doctor/queue/{queueEntryId}/start:
+    post:
+      operationId: startVisit
+      tags:
+        - Doctor
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/DeviceId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/QueueEntryId"
+      summary: Confirm the patient and start the consultation
+      description: Allowed from WAITING, CALLED, ON_HOLD or MISSED. Starting an already IN_CONSULTATION visit returns 200. BOOKED returns 409 NOT_CHECKED_IN.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StartVisitRequest"
+      responses:
+        "200":
+          description: Started
+          headers:
+            X-Request-Id:
+              description: Request correlation ID.
+              schema:
+                type: string
+            Idempotent-Replayed:
+              description: Present with value true when the stored original response was replayed.
+              schema:
+                const: "true"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StartVisitResponse"
+        "400":
+          $ref: "#/components/responses/E400"
+        "401":
+          $ref: "#/components/responses/E401"
+        "403":
+          $ref: "#/components/responses/E403"
+        "404":
+          $ref: "#/components/responses/E404"
+        "409":
+          $ref: "#/components/responses/E409"
+        "422":
+          $ref: "#/components/responses/E422"
+        "426":
+          $ref: "#/components/responses/E426"
+        "429":
+          $ref: "#/components/responses/E429"
+  /doctor/walk-ins:
+    post:
+      operationId: createWalkIn
+      tags:
+        - Doctor
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/DeviceId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      summary: "DEMO ONLY: add a checked-in walk-in to today's queue"
+      description: Bypasses the front desk and billing for testing. Reuses an existing patient with the same mobile and name. The production flow is front-desk registration and check-in.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WalkInRequest"
+      responses:
+        "201":
+          description: Queue entry
+          headers:
+            X-Request-Id:
+              description: Request correlation ID.
+              schema:
+                type: string
+            Idempotent-Replayed:
+              description: Present with value true when the stored original response was replayed.
+              schema:
+                const: "true"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QueueEntry"
+        "400":
+          $ref: "#/components/responses/E400"
+        "401":
+          $ref: "#/components/responses/E401"
+        "403":
+          $ref: "#/components/responses/E403"
+        "404":
+          $ref: "#/components/responses/E404"
+        "422":
+          $ref: "#/components/responses/E422"
+        "426":
+          $ref: "#/components/responses/E426"
+        "429":
+          $ref: "#/components/responses/E429"
+  /doctor/patients/{patientId}/record:
+    get:
+      operationId: getPatientRecordForDoctor
+      tags:
+        - Doctor
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/DeviceId"
+        - $ref: "#/components/parameters/IfNoneMatch"
+        - $ref: "#/components/parameters/PatientId"
+        - name: visitId
+          in: query
+          required: false
+          schema:
+            type: string
+            pattern: ^[A-Za-z0-9._:-]{1,120}$
+            description: Visit justifying access.
+          description: Optional. If omitted the server uses the doctor's active or recent visit with this patient.
+      summary: Longitudinal record of a patient in active care
+      description: "Requires a care relationship: a WAITING, CALLED, IN_CONSULTATION or ON_HOLD visit, or one COMPLETED in the last 7 days, with this doctor. Every read is audited. Includes all doctors' signed documents."
+      responses:
+        "200":
+          description: Record
+          headers:
+            ETag:
+              description: Entity tag of this representation. Send it back as If-None-Match.
+              schema:
+                type: string
+            X-Request-Id:
+              description: Request correlation ID.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PatientRecord"
+        "304":
+          description: "Not modified: the If-None-Match tag still matches."
+        "400":
+          $ref: "#/components/responses/E400"
+        "401":
+          $ref: "#/components/responses/E401"
+        "403":
+          $ref: "#/components/responses/E403"
+        "404":
+          $ref: "#/components/responses/E404"
+        "426":
+          $ref: "#/components/responses/E426"
+        "429":
+          $ref: "#/components/responses/E429"
+  /doctor/visits/{visitId}/complete:
+    post:
+      operationId: completeVisit
+      tags:
+        - Doctor
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/DeviceId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/VisitId"
+      summary: Atomically sign the visit bundle and mark the visit completed
+      description: Upload every referenced blob first. All documents, routing, deliveries and the visit status change commit together or not at all. Idempotency-Key must equal bundleId. Replay returns the original 201 response. A different bundle for an already completed visit returns 409 VISIT_ALREADY_COMPLETED; use addenda instead.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompleteVisitRequest"
+      responses:
+        "201":
+          description: Signed and delivered
+          headers:
+            X-Request-Id:
+              description: Request correlation ID.
+              schema:
+                type: string
+            Idempotent-Replayed:
+              description: Present with value true when the stored original response was replayed.
+              schema:
+                const: "true"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompleteVisitResponse"
+        "400":
+          $ref: "#/components/responses/E400"
+        "401":
+          $ref: "#/components/responses/E401"
+        "403":
+          $ref: "#/components/responses/E403"
+        "404":
+          $ref: "#/components/responses/E404"
+        "409":
+          $ref: "#/components/responses/E409"
+        "413":
+          $ref: "#/components/responses/E413"
+        "422":
+          $ref: "#/components/responses/E422"
+        "426":
+          $ref: "#/components/responses/E426"
+        "429":
+          $ref: "#/components/responses/E429"
+  /doctor/visits/{visitId}/delivery:
+    get:
+      operationId: getVisitDelivery
+      tags:
+        - Doctor
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/DeviceId"
+        - $ref: "#/components/parameters/IfNoneMatch"
+        - $ref: "#/components/parameters/VisitId"
+      summary: Recipient states of the documents signed for a visit
+      responses:
+        "200":
+          description: Delivery
+          headers:
+            ETag:
+              description: Entity tag of this representation. Send it back as If-None-Match.
+              schema:
+                type: string
+            X-Request-Id:
+              description: Request correlation ID.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VisitDelivery"
+        "304":
+          description: "Not modified: the If-None-Match tag still matches."
+        "400":
+          $ref: "#/components/responses/E400"
+        "401":
+          $ref: "#/components/responses/E401"
+        "403":
+          $ref: "#/components/responses/E403"
+        "404":
+          $ref: "#/components/responses/E404"
+        "426":
+          $ref: "#/components/responses/E426"
+        "429":
+          $ref: "#/components/responses/E429"
+  /doctor/documents/{documentId}:
+    get:
+      operationId: getDocumentForDoctor
+      tags:
+        - Doctor
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/DeviceId"
+        - $ref: "#/components/parameters/IfNoneMatch"
+        - $ref: "#/components/parameters/DocumentId"
+      summary: Document with every immutable version and current recipient states
+      description: Allowed for the author, or for a doctor with a care relationship with the patient.
+      responses:
+        "200":
+          description: Document
+          headers:
+            ETag:
+              description: Entity tag of this representation. Send it back as If-None-Match.
+              schema:
+                type: string
+            X-Request-Id:
+              description: Request correlation ID.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClinicalDocument"
+        "304":
+          description: "Not modified: the If-None-Match tag still matches."
+        "400":
+          $ref: "#/components/responses/E400"
+        "401":
+          $ref: "#/components/responses/E401"
+        "404":
+          $ref: "#/components/responses/E404"
+        "426":
+          $ref: "#/components/responses/E426"
+        "429":
+          $ref: "#/components/responses/E429"
+  /doctor/documents/{documentId}/addenda:
+    post:
+      operationId: createAddendum
+      tags:
+        - Doctor
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/DeviceId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/DocumentId"
+      summary: Sign a new immutable version with a reason
+      description: Author only. Earlier versions stay readable and are never overwritten. Recipients of the previous version move to SUPERSEDED and the new version is delivered. Idempotency-Key must equal clientAddendumId.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddendumRequest"
+      responses:
+        "201":
+          description: Version signed
+          headers:
+            X-Request-Id:
+              description: Request correlation ID.
+              schema:
+                type: string
+            Idempotent-Replayed:
+              description: Present with value true when the stored original response was replayed.
+              schema:
+                const: "true"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AddendumResponse"
+        "400":
+          $ref: "#/components/responses/E400"
+        "401":
+          $ref: "#/components/responses/E401"
+        "403":
+          $ref: "#/components/responses/E403"
+        "404":
+          $ref: "#/components/responses/E404"
+        "409":
+          $ref: "#/components/responses/E409"
+        "413":
+          $ref: "#/components/responses/E413"
+        "422":
+          $ref: "#/components/responses/E422"
+        "426":
+          $ref: "#/components/responses/E426"
+        "429":
+          $ref: "#/components/responses/E429"
+  /doctor/events:
+    get:
+      operationId: getDoctorEvents
+      tags:
+        - Doctor
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/DeviceId"
+        - $ref: "#/components/parameters/IfNoneMatch"
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      summary: "Delta feed: queue changes, deliveries and lab results"
+      description: "Event types: QUEUE_UPDATED, DOCUMENT_SIGNED, DOCUMENT_STATE_CHANGED, LAB_RESULT_READY. Ignore unknown types."
+      responses:
+        "200":
+          description: Events
+          headers:
+            ETag:
+              description: Entity tag of this representation. Send it back as If-None-Match.
+              schema:
+                type: string
+            X-Request-Id:
+              description: Request correlation ID.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventPage"
+        "304":
+          description: "Not modified: the If-None-Match tag still matches."
+        "400":
+          $ref: "#/components/responses/E400"
+        "401":
+          $ref: "#/components/responses/E401"
+        "403":
+          $ref: "#/components/responses/E403"
+        "426":
+          $ref: "#/components/responses/E426"
+        "429":
+          $ref: "#/components/responses/E429"
+  /patient/otp/request:
+    post:
+      operationId: requestPatientOtp
+      tags:
+        - Patient
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      summary: Start mobile sign-in
+      description: "SYNTHETIC: no SMS is sent and demoCode is returned. Limits: one per 30s, 3 per 10 minutes and 10 per day per mobile; 20 per 10 minutes per IP."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OtpRequest"
+      responses:
+        "201":
+          description: Challenge
+          headers:
+            X-Request-Id:
+              description: Request correlation ID.
+              schema:
+                type: string
+            Idempotent-Replayed:
+              description: Present with value true when the stored original response was replayed.
+              schema:
+                const: "true"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OtpChallenge"
+        "400":
+          $ref: "#/components/responses/E400"
+        "404":
+          $ref: "#/components/responses/E404"
+        "422":
+          $ref: "#/components/responses/E422"
+        "426":
+          $ref: "#/components/responses/E426"
+        "429":
+          $ref: "#/components/responses/E429"
+  /patient/otp/verify:
+    post:
+      operationId: verifyPatientOtp
+      tags:
+        - Patient
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      summary: Verify the code and receive a device-bound token
+      description: 3 wrong codes invalidate the challenge and lock the mobile for 30 minutes.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OtpVerify"
+      responses:
+        "201":
+          description: Signed in
+          headers:
+            X-Request-Id:
+              description: Request correlation ID.
+              schema:
+                type: string
+            Idempotent-Replayed:
+              description: Present with value true when the stored original response was replayed.
+              schema:
+                const: "true"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PatientSession"
+        "400":
+          $ref: "#/components/responses/E400"
+        "401":
+          $ref: "#/components/responses/E401"
+        "422":
+          $ref: "#/components/responses/E422"
+        "426":
+          $ref: "#/components/responses/E426"
+        "429":
+          $ref: "#/components/responses/E429"
+  /patient/profiles:
+    get:
+      operationId: listProfiles
+      tags:
+        - Patient
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/DeviceId"
+        - $ref: "#/components/parameters/IfNoneMatch"
+      summary: Family profiles registered with this mobile
+      responses:
+        "200":
+          description: Profiles
+          headers:
+            ETag:
+              description: Entity tag of this representation. Send it back as If-None-Match.
+              schema:
+                type: string
+            X-Request-Id:
+              description: Request correlation ID.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProfileList"
+        "304":
+          description: "Not modified: the If-None-Match tag still matches."
+        "400":
+          $ref: "#/components/responses/E400"
+        "401":
+          $ref: "#/components/responses/E401"
+        "403":
+          $ref: "#/components/responses/E403"
+        "426":
+          $ref: "#/components/responses/E426"
+        "429":
+          $ref: "#/components/responses/E429"
+  /patient/profiles/{profileId}/record:
+    get:
+      operationId: getProfileRecord
+      tags:
+        - Patient
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/DeviceId"
+        - $ref: "#/components/parameters/IfNoneMatch"
+        - $ref: "#/components/parameters/ProfileId"
+      summary: Complete current record for one profile
+      description: Visits, every document routed to the patient with all versions, recipient states and released results.
+      responses:
+        "200":
+          description: Record
+          headers:
+            ETag:
+              description: Entity tag of this representation. Send it back as If-None-Match.
+              schema:
+                type: string
+            X-Request-Id:
+              description: Request correlation ID.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PatientRecord"
+        "304":
+          description: "Not modified: the If-None-Match tag still matches."
+        "400":
+          $ref: "#/components/responses/E400"
+        "401":
+          $ref: "#/components/responses/E401"
+        "403":
+          $ref: "#/components/responses/E403"
+        "426":
+          $ref: "#/components/responses/E426"
+        "429":
+          $ref: "#/components/responses/E429"
+  /patient/profiles/{profileId}/feed:
+    get:
+      operationId: getProfileFeed
+      tags:
+        - Patient
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/DeviceId"
+        - $ref: "#/components/parameters/IfNoneMatch"
+        - $ref: "#/components/parameters/ProfileId"
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      summary: Delta feed for one profile
+      description: "Event types: VISIT_UPDATED, DOCUMENT_AVAILABLE, DOCUMENT_AMENDED, DOCUMENT_STATE_CHANGED, LAB_RESULT_READY. No cursor starts from the beginning of the profile history."
+      responses:
+        "200":
+          description: Events
+          headers:
+            ETag:
+              description: Entity tag of this representation. Send it back as If-None-Match.
+              schema:
+                type: string
+            X-Request-Id:
+              description: Request correlation ID.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventPage"
+        "304":
+          description: "Not modified: the If-None-Match tag still matches."
+        "400":
+          $ref: "#/components/responses/E400"
+        "401":
+          $ref: "#/components/responses/E401"
+        "403":
+          $ref: "#/components/responses/E403"
+        "426":
+          $ref: "#/components/responses/E426"
+        "429":
+          $ref: "#/components/responses/E429"
+  /patient/documents/{documentId}:
+    get:
+      operationId: getDocumentForPatient
+      tags:
+        - Patient
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/DeviceId"
+        - $ref: "#/components/parameters/IfNoneMatch"
+        - $ref: "#/components/parameters/DocumentId"
+      summary: Document detail with every version
+      responses:
+        "200":
+          description: Document
+          headers:
+            ETag:
+              description: Entity tag of this representation. Send it back as If-None-Match.
+              schema:
+                type: string
+            X-Request-Id:
+              description: Request correlation ID.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClinicalDocument"
+        "304":
+          description: "Not modified: the If-None-Match tag still matches."
+        "400":
+          $ref: "#/components/responses/E400"
+        "401":
+          $ref: "#/components/responses/E401"
+        "404":
+          $ref: "#/components/responses/E404"
+        "426":
+          $ref: "#/components/responses/E426"
+        "429":
+          $ref: "#/components/responses/E429"
+  /patient/documents/{documentId}/viewed:
+    post:
+      operationId: markDocumentViewed
+      tags:
+        - Patient
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/DeviceId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/DocumentId"
+      summary: Acknowledge that the patient opened a document version
+      description: The doctor sees the PATIENT recipient move to VIEWED. Repeating it is harmless.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ViewedRequest"
+      responses:
+        "200":
+          description: Recorded
+          headers:
+            X-Request-Id:
+              description: Request correlation ID.
+              schema:
+                type: string
+            Idempotent-Replayed:
+              description: Present with value true when the stored original response was replayed.
+              schema:
+                const: "true"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ViewedResponse"
+        "400":
+          $ref: "#/components/responses/E400"
+        "401":
+          $ref: "#/components/responses/E401"
+        "404":
+          $ref: "#/components/responses/E404"
+        "409":
+          $ref: "#/components/responses/E409"
+        "422":
+          $ref: "#/components/responses/E422"
+        "426":
+          $ref: "#/components/responses/E426"
+        "429":
+          $ref: "#/components/responses/E429"
+  /patient/notifications:
+    get:
+      operationId: pollNotifications
+      tags:
+        - Patient
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/DeviceId"
+        - $ref: "#/components/parameters/IfNoneMatch"
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      summary: Poll notifications across all linked profiles
+      description: Push (FCM) is out of scope. Poll in the foreground and with periodic background work; 304 means nothing new.
+      responses:
+        "200":
+          description: Notifications
+          headers:
+            ETag:
+              description: Entity tag of this representation. Send it back as If-None-Match.
+              schema:
+                type: string
+            X-Request-Id:
+              description: Request correlation ID.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationPage"
+        "304":
+          description: "Not modified: the If-None-Match tag still matches."
+        "400":
+          $ref: "#/components/responses/E400"
+        "401":
+          $ref: "#/components/responses/E401"
+        "403":
+          $ref: "#/components/responses/E403"
+        "426":
+          $ref: "#/components/responses/E426"
+        "429":
+          $ref: "#/components/responses/E429"
+  /blobs/{sha256}:
+    put:
+      operationId: putBlob
+      tags:
+        - Blobs
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/DeviceId"
+        - $ref: "#/components/parameters/Sha256"
+        - name: Content-Type
+          in: header
+          required: true
+          schema:
+            type: string
+            enum:
+              - image/png
+              - application/pdf
+              - application/vnd.samford.ink+json
+      summary: Upload an immutable content-addressed blob (doctor only)
+      description: The server verifies the SHA-256, size (PNG 10 MiB, PDF 25 MiB, ink 16 MiB), and the real PNG, PDF or JSON structure. Uploading identical bytes again returns 200. Idempotency-Key is optional here.
+      requestBody:
+        required: true
+        content:
+          image/png:
+            schema:
+              type: string
+              format: binary
+          application/pdf:
+            schema:
+              type: string
+              format: binary
+          application/vnd.samford.ink+json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Already stored
+          headers:
+            X-Request-Id:
+              description: Request correlation ID.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BlobReceipt"
+        "201":
+          description: Stored
+          headers:
+            X-Request-Id:
+              description: Request correlation ID.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BlobReceipt"
+        "400":
+          $ref: "#/components/responses/E400"
+        "401":
+          $ref: "#/components/responses/E401"
+        "403":
+          $ref: "#/components/responses/E403"
+        "413":
+          $ref: "#/components/responses/E413"
+        "415":
+          $ref: "#/components/responses/E415"
+        "422":
+          $ref: "#/components/responses/E422"
+        "426":
+          $ref: "#/components/responses/E426"
+        "429":
+          $ref: "#/components/responses/E429"
+    head:
+      operationId: headBlob
+      tags:
+        - Blobs
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/DeviceId"
+        - $ref: "#/components/parameters/Sha256"
+      summary: Check whether a blob is already stored (doctor only)
+      responses:
+        "200":
+          description: Stored
+        "400":
+          $ref: "#/components/responses/E400"
+        "401":
+          $ref: "#/components/responses/E401"
+        "403":
+          $ref: "#/components/responses/E403"
+        "404":
+          description: Not stored
+    get:
+      operationId: getBlob
+      tags:
+        - Blobs
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/DeviceId"
+        - $ref: "#/components/parameters/Sha256"
+        - $ref: "#/components/parameters/IfNoneMatch"
+      summary: Read a blob you are authorized to see
+      description: Pharmacy, lab, patient and doctor access is derived from the documents that reference the blob. Responses are immutable and cacheable.
+      responses:
+        "200":
+          description: Bytes
+          headers:
+            ETag:
+              description: Entity tag of this representation. Send it back as If-None-Match.
+              schema:
+                type: string
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+            application/vnd.samford.ink+json:
+              schema:
+                type: object
+        "304":
+          description: "Not modified: the If-None-Match tag still matches."
+        "400":
+          $ref: "#/components/responses/E400"
+        "401":
+          $ref: "#/components/responses/E401"
+        "404":
+          $ref: "#/components/responses/E404"
+        "426":
+          $ref: "#/components/responses/E426"
+        "429":
+          $ref: "#/components/responses/E429"
+  /files/{sha256}:
+    get:
+      operationId: getSignedFile
+      tags:
+        - Blobs
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/Sha256"
+        - name: exp
+          in: query
+          required: true
+          schema:
+            type: integer
+        - name: sig
+          in: query
+          required: true
+          schema:
+            type: string
+      summary: Read a blob through a short-lived signed URL
+      description: URLs come from document responses (pages[].url, pdfUrl, inkUrl). They expire after 15 minutes.
+      responses:
+        "200":
+          description: Bytes
+        "403":
+          $ref: "#/components/responses/E403"
+        "404":
+          $ref: "#/components/responses/E404"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Device-bound opaque token. Every authenticated request must also send X-Device-Id.
+  parameters:
+    DeviceId:
+      name: X-Device-Id
+      in: header
+      required: true
+      schema:
+        type: string
+        pattern: ^[A-Za-z0-9._:-]{8,128}$
+      description: Must equal the deviceId used when the token was issued.
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        pattern: ^[A-Za-z0-9_-]{8,128}$
+      description: Required on every POST. UUID recommended. See docs/mobile-sync.md.
+    IfNoneMatch:
+      name: If-None-Match
+      in: header
+      required: false
+      schema:
+        type: string
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      schema:
+        type: string
+        maxLength: 64
+      description: Opaque nextCursor from the previous page. Omit to start from the beginning.
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 500
+        default: 100
+    Sha256:
+      name: sha256
+      in: path
+      required: true
+      schema:
+        $ref: "#/components/schemas/Sha256"
+    QueueEntryId:
+      name: queueEntryId
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: ^[A-Za-z0-9._:-]{1,120}$
+        description: Queue entry ID.
+    VisitId:
+      name: visitId
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: ^[A-Za-z0-9._:-]{1,120}$
+        description: Visit ID.
+    PatientId:
+      name: patientId
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: ^[A-Za-z0-9._:-]{1,120}$
+        description: Patient ID.
+    ProfileId:
+      name: profileId
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: ^[A-Za-z0-9._:-]{1,120}$
+        description: Profile ID.
+    DocumentId:
+      name: documentId
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: ^[A-Za-z0-9._:-]{1,120}$
+        description: Document ID.
+  responses:
+    E400:
+      description: Malformed request, missing Idempotency-Key or X-Device-Id, or invalid cursor.
+      headers:
+        X-Request-Id:
+          description: Request correlation ID.
+          schema:
+            type: string
+        Retry-After:
+          description: Seconds to wait before retrying.
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    E401:
+      description: Missing, invalid, expired or revoked token; device mismatch; wrong OTP.
+      headers:
+        X-Request-Id:
+          description: Request correlation ID.
+          schema:
+            type: string
+        Retry-After:
+          description: Seconds to wait before retrying.
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    E403:
+      description: Authenticated but not permitted, for example no care relationship.
+      headers:
+        X-Request-Id:
+          description: Request correlation ID.
+          schema:
+            type: string
+        Retry-After:
+          description: Seconds to wait before retrying.
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    E404:
+      description: Not found or outside your scope.
+      headers:
+        X-Request-Id:
+          description: Request correlation ID.
+          schema:
+            type: string
+        Retry-After:
+          description: Seconds to wait before retrying.
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    E409:
+      description: State conflict, for example MISSING_BLOBS, VISIT_ALREADY_COMPLETED or NOT_LATEST_VERSION.
+      headers:
+        X-Request-Id:
+          description: Request correlation ID.
+          schema:
+            type: string
+        Retry-After:
+          description: Seconds to wait before retrying.
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    E413:
+      description: Payload too large.
+      headers:
+        X-Request-Id:
+          description: Request correlation ID.
+          schema:
+            type: string
+        Retry-After:
+          description: Seconds to wait before retrying.
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    E415:
+      description: Unsupported media type.
+      headers:
+        X-Request-Id:
+          description: Request correlation ID.
+          schema:
+            type: string
+        Retry-After:
+          description: Seconds to wait before retrying.
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    E422:
+      description: Validation failed, hash mismatch or Idempotency-Key reused with a different request.
+      headers:
+        X-Request-Id:
+          description: Request correlation ID.
+          schema:
+            type: string
+        Retry-After:
+          description: Seconds to wait before retrying.
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    E426:
+      description: This app version is below the minimum. Update the app.
+      headers:
+        X-Request-Id:
+          description: Request correlation ID.
+          schema:
+            type: string
+        Retry-After:
+          description: Seconds to wait before retrying.
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    E429:
+      description: Rate limited; see Retry-After.
+      headers:
+        X-Request-Id:
+          description: Request correlation ID.
+          schema:
+            type: string
+        Retry-After:
+          description: Seconds to wait before retrying.
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    E500:
+      description: Unexpected server error; retry later.
+      headers:
+        X-Request-Id:
+          description: Request correlation ID.
+          schema:
+            type: string
+        Retry-After:
+          description: Seconds to wait before retrying.
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              description: Stable machine-readable code. See docs/mobile-sync.md.
+            message:
+              type: string
+              description: Plain-language message suitable for display.
+            retryable:
+              type: boolean
+              description: True when retrying the identical request later may succeed.
+            details:
+              type: object
+              description: Code-specific structured details, for example MISSING_BLOBS.details.missing.
+            requestId:
+              type: string
+              description: Correlates with the X-Request-Id response header and server audit.
+          required:
+            - code
+            - message
+            - retryable
+      required:
+        - error
+    Sha256:
+      type: string
+      pattern: ^[0-9a-f]{64}$
+      description: Lowercase hexadecimal SHA-256 of the exact blob bytes.
+    Timestamp:
+      type: string
+      format: date-time
+      description: ISO-8601 instant in UTC, for example 2026-11-21T04:05:06.000Z.
+    LocalDate:
+      type: string
+      format: date
+      description: Hospital calendar date in Asia/Kolkata, YYYY-MM-DD.
+    Sex:
+      type: string
+      enum:
+        - Female
+        - Male
+        - Other
+    DocumentType:
+      type: string
+      enum:
+        - VISIT_SUMMARY
+        - PRESCRIPTION
+        - INVESTIGATIONS
+        - ADVICE_REFERRAL
+        - OTHER
+    DeliveryState:
+      type: string
+      enum:
+        - AVAILABLE
+        - VIEWED
+        - DISPENSED
+        - PARTIALLY_DISPENSED
+        - NOT_DISPENSED
+        - SAMPLE_COLLECTED
+        - RESULT_READY
+        - SUPERSEDED
+      description: Server delivery state. Clients may additionally show their own local PENDING state before upload.
+    QueueStatus:
+      type: string
+      enum:
+        - BOOKED
+        - WAITING
+        - CALLED
+        - IN_CONSULTATION
+        - ON_HOLD
+        - COMPLETED
+        - MISSED
+        - CANCELLED
+    RecipientKind:
+      type: string
+      enum:
+        - PHARMACY
+        - LAB
+        - PATIENT
+    Meta:
+      type: object
+      properties:
+        apiVersion:
+          type: string
+          description: Semantic version of this v1 contract. Minor and patch versions only add fields.
+        serverVersion:
+          type: string
+        synthetic:
+          const: true
+        minDoctorAppVersion:
+          type: integer
+          minimum: 1
+          description: Minimum doctor-android versionCode.
+        minPatientAppVersion:
+          type: integer
+          minimum: 1
+          description: Minimum patient-android versionCode.
+        serverTime:
+          $ref: "#/components/schemas/Timestamp"
+        docsUrl:
+          type: string
+      required:
+        - apiVersion
+        - serverVersion
+        - synthetic
+        - minDoctorAppVersion
+        - minPatientAppVersion
+        - serverTime
+        - docsUrl
+    Persona:
+      type: object
+      properties:
+        personaId:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,120}$
+          description: Doctor persona ID. Identical to doctorId everywhere else.
+        doctorId:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,120}$
+          description: Same value as personaId.
+        name:
+          type: string
+        qualification:
+          type: string
+        registrationNo:
+          type: string
+        department:
+          type: string
+        departmentId:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,120}$
+          description: Department ID.
+      required:
+        - personaId
+        - doctorId
+        - name
+        - qualification
+        - registrationNo
+        - department
+        - departmentId
+    PersonaList:
+      type: object
+      properties:
+        personas:
+          type: array
+          items:
+            $ref: "#/components/schemas/Persona"
+      required:
+        - personas
+    DoctorSessionRequest:
+      type: object
+      properties:
+        personaId:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,120}$
+          description: A persona from GET /doctor/personas.
+        deviceId:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{8,128}$
+        deviceName:
+          type: string
+          maxLength: 80
+      required:
+        - personaId
+        - deviceId
+      additionalProperties: false
+    DoctorSession:
+      type: object
+      properties:
+        token:
+          type: string
+          description: Opaque bearer token. Store securely; never log it.
+        tokenType:
+          const: Bearer
+        expiresAt:
+          $ref: "#/components/schemas/Timestamp"
+        deviceId:
+          type: string
+        doctor:
+          $ref: "#/components/schemas/Persona"
+      required:
+        - token
+        - tokenType
+        - expiresAt
+        - deviceId
+        - doctor
+    PatientAccount:
+      type: object
+      properties:
+        accountId:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,120}$
+          description: Patient-app account linked to the mobile number.
+        mobileMasked:
+          type: string
+          description: For example ******0001.
+      required:
+        - accountId
+        - mobileMasked
+    SessionInfo:
+      type: object
+      properties:
+        kind:
+          type: string
+          enum:
+            - DOCTOR
+            - PATIENT
+        deviceId:
+          type: string
+        expiresAt:
+          $ref: "#/components/schemas/Timestamp"
+        doctor:
+          $ref: "#/components/schemas/Persona"
+        account:
+          $ref: "#/components/schemas/PatientAccount"
+      required:
+        - kind
+        - deviceId
+        - expiresAt
+    Lab:
+      type: object
+      properties:
+        labId:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,120}$
+          description: Lab identifier used in routing.labs.
+        name:
+          type: string
+        kind:
+          type: string
+          enum:
+            - PATHOLOGY
+            - IMAGING
+            - OTHER
+      required:
+        - labId
+        - name
+        - kind
+    LabList:
+      type: object
+      properties:
+        labs:
+          type: array
+          items:
+            $ref: "#/components/schemas/Lab"
+      required:
+        - labs
+    Allergy:
+      type: object
+      properties:
+        substance:
+          type: string
+        reaction:
+          type: string
+        certainty:
+          type: string
+      required:
+        - substance
+        - reaction
+        - certainty
+    Vitals:
+      type: object
+      properties:
+        bp:
+          anyOf:
+            - type: string
+              description: Systolic/diastolic mmHg, for example 120/80.
+            - type: "null"
+        pulse:
+          anyOf:
+            - type: integer
+            - type: "null"
+        tempC:
+          anyOf:
+            - type: number
+            - type: "null"
+        spo2:
+          anyOf:
+            - type: integer
+            - type: "null"
+        weightKg:
+          anyOf:
+            - type: number
+            - type: "null"
+        recordedAt:
+          $ref: "#/components/schemas/Timestamp"
+      required:
+        - bp
+        - pulse
+        - tempC
+        - spo2
+        - weightKg
+        - recordedAt
+    PatientSummary:
+      type: object
+      properties:
+        patientId:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,120}$
+          description: Patient ID; equals profileId in the patient app.
+        uhid:
+          type: string
+        name:
+          type: string
+        age:
+          type: integer
+        sex:
+          $ref: "#/components/schemas/Sex"
+        mobileMasked:
+          type: string
+      required:
+        - patientId
+        - uhid
+        - name
+        - age
+        - sex
+        - mobileMasked
+    QueuePatient:
+      type: object
+      properties:
+        patientId:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,120}$
+          description: Patient ID.
+        uhid:
+          type: string
+        name:
+          type: string
+        age:
+          type: integer
+        sex:
+          $ref: "#/components/schemas/Sex"
+        mobileMasked:
+          type: string
+        allergies:
+          type: array
+          items:
+            $ref: "#/components/schemas/Allergy"
+      required:
+        - patientId
+        - uhid
+        - name
+        - age
+        - sex
+        - mobileMasked
+        - allergies
+    QueueEntry:
+      type: object
+      properties:
+        queueEntryId:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,120}$
+          description: Queue entry ID. In this backend it is always equal to visitId.
+        visitId:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,120}$
+          description: Visit ID.
+        token:
+          anyOf:
+            - type: integer
+              description: Front-desk token; null until checked in.
+            - type: "null"
+        status:
+          $ref: "#/components/schemas/QueueStatus"
+        date:
+          $ref: "#/components/schemas/LocalDate"
+        time:
+          type: string
+          description: Booked slot time HH:mm (IST).
+        mode:
+          type: string
+          description: Walk-in, Video or Telephone.
+        priority:
+          type: boolean
+        checkedInAt:
+          anyOf:
+            - $ref: "#/components/schemas/Timestamp"
+            - type: "null"
+        startedAt:
+          anyOf:
+            - $ref: "#/components/schemas/Timestamp"
+            - type: "null"
+        completedAt:
+          anyOf:
+            - $ref: "#/components/schemas/Timestamp"
+            - type: "null"
+        returning:
+          type: boolean
+          description: True if the patient has an earlier completed visit or signed document at this hospital.
+        lastVisitAt:
+          anyOf:
+            - $ref: "#/components/schemas/Timestamp"
+            - type: "null"
+        priorDocumentCount:
+          type: integer
+          minimum: 0
+        patient:
+          $ref: "#/components/schemas/QueuePatient"
+        vitals:
+          anyOf:
+            - $ref: "#/components/schemas/Vitals"
+            - type: "null"
+        demoWalkIn:
+          type: boolean
+          description: Created by the demo-only walk-in shortcut instead of the front desk.
+      required:
+        - queueEntryId
+        - visitId
+        - token
+        - status
+        - date
+        - time
+        - mode
+        - priority
+        - checkedInAt
+        - startedAt
+        - completedAt
+        - returning
+        - lastVisitAt
+        - priorDocumentCount
+        - patient
+        - vitals
+        - demoWalkIn
+    Queue:
+      type: object
+      properties:
+        date:
+          $ref: "#/components/schemas/LocalDate"
+        doctorId:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,120}$
+          description: Doctor ID.
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/QueueEntry"
+        serverTime:
+          $ref: "#/components/schemas/Timestamp"
+      required:
+        - date
+        - doctorId
+        - entries
+        - serverTime
+    StartVisitRequest:
+      type: object
+      properties:
+        identityConfirmed:
+          const: true
+          description: The doctor confirmed name, UHID and allergy status with the patient.
+      required:
+        - identityConfirmed
+      additionalProperties: false
+    StartVisitResponse:
+      type: object
+      properties:
+        queueEntryId:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,120}$
+          description: Queue entry ID.
+        visitId:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,120}$
+          description: Visit ID.
+        status:
+          $ref: "#/components/schemas/QueueStatus"
+        startedAt:
+          $ref: "#/components/schemas/Timestamp"
+      required:
+        - queueEntryId
+        - visitId
+        - status
+        - startedAt
+    WalkInRequest:
+      type: object
+      properties:
+        patientId:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,120}$
+          description: Existing patient to add to today's queue.
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+        age:
+          type: integer
+          minimum: 0
+          maximum: 120
+        sex:
+          $ref: "#/components/schemas/Sex"
+        mobile:
+          type: string
+          pattern: ^[0-9]{10}$
+          description: Synthetic 10-digit mobile. Needed for the patient app.
+      required: []
+      additionalProperties: false
+      anyOf:
+        - required:
+            - patientId
+        - required:
+            - name
+            - age
+            - sex
+    PageInput:
+      type: object
+      properties:
+        index:
+          type: integer
+          minimum: 0
+        pngSha256:
+          $ref: "#/components/schemas/Sha256"
+        widthPx:
+          type: integer
+          minimum: 200
+          maximum: 8192
+        heightPx:
+          type: integer
+          minimum: 200
+          maximum: 8192
+      required:
+        - index
+        - pngSha256
+        - widthPx
+        - heightPx
+      additionalProperties: false
+    Routing:
+      type: object
+      properties:
+        pharmacy:
+          type: boolean
+          description: Deliver to the hospital pharmacy. Allowed only for PRESCRIPTION.
+        labs:
+          type: array
+          items:
+            type: string
+            pattern: ^[A-Za-z0-9._:-]{1,120}$
+            description: Lab ID from GET /doctor/labs.
+          maxItems: 10
+          uniqueItems: true
+          description: Allowed only for INVESTIGATIONS.
+        patient:
+          type: boolean
+          description: Show in the patient app.
+      required:
+        - pharmacy
+        - labs
+        - patient
+      additionalProperties: false
+    Hints:
+      type: object
+      properties:
+        medicines:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+                minLength: 1
+                maxLength: 120
+              strength:
+                type: string
+                maxLength: 60
+              dose:
+                type: string
+                maxLength: 60
+              frequency:
+                type: string
+                maxLength: 60
+              durationDays:
+                type: integer
+                minimum: 0
+                maximum: 3650
+              notes:
+                type: string
+                maxLength: 300
+            required:
+              - name
+            additionalProperties: false
+          maxItems: 50
+        tests:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+                minLength: 1
+                maxLength: 120
+              code:
+                type: string
+                maxLength: 40
+            required:
+              - name
+            additionalProperties: false
+          maxItems: 50
+        diagnosis:
+          type: string
+          maxLength: 500
+        notes:
+          type: string
+          maxLength: 2000
+      required: []
+      additionalProperties: false
+      description: Optional typed hints. The signed handwriting remains authoritative; recipients see hints as unverified.
+    DocumentInput:
+      type: object
+      properties:
+        clientDocId:
+          type: string
+          format: uuid
+          description: Client-generated document ID, unique within the bundle.
+        type:
+          $ref: "#/components/schemas/DocumentType"
+        title:
+          type: string
+          minLength: 1
+          maxLength: 120
+        pages:
+          type: array
+          items:
+            $ref: "#/components/schemas/PageInput"
+          minItems: 1
+          maxItems: 60
+          description: Pages with indexes 0..n-1 in order.
+        pdfSha256:
+          $ref: "#/components/schemas/Sha256"
+        inkSha256:
+          anyOf:
+            - $ref: "#/components/schemas/Sha256"
+            - type: "null"
+        inkFormat:
+          anyOf:
+            - type: string
+              pattern: ^samford-ink(-placeholder)?/[0-9]+$
+              description: samford-ink/1 is defined by the doctor app repository.
+            - type: "null"
+        routing:
+          $ref: "#/components/schemas/Routing"
+        hints:
+          $ref: "#/components/schemas/Hints"
+        signedAt:
+          $ref: "#/components/schemas/Timestamp"
+      required:
+        - clientDocId
+        - type
+        - title
+        - pages
+        - pdfSha256
+        - inkSha256
+        - inkFormat
+        - routing
+        - signedAt
+      additionalProperties: false
+    FollowUpInput:
+      type: object
+      properties:
+        date:
+          $ref: "#/components/schemas/LocalDate"
+        note:
+          type: string
+          maxLength: 500
+        requestBooking:
+          type: boolean
+          description: "Default true: ask the front desk to book the follow-up."
+      required:
+        - date
+      additionalProperties: false
+    CompleteVisitRequest:
+      type: object
+      properties:
+        bundleId:
+          type: string
+          format: uuid
+          description: Client bundle UUID. Must equal the Idempotency-Key header.
+        completedAt:
+          $ref: "#/components/schemas/Timestamp"
+        documents:
+          type: array
+          items:
+            $ref: "#/components/schemas/DocumentInput"
+          minItems: 1
+          maxItems: 20
+        followUp:
+          $ref: "#/components/schemas/FollowUpInput"
+      required:
+        - bundleId
+        - completedAt
+        - documents
+      additionalProperties: false
+    CompletedDocument:
+      type: object
+      properties:
+        clientDocId:
+          type: string
+          format: uuid
+          description: Client document ID.
+        documentId:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,120}$
+          description: Stable server document ID across versions.
+        version:
+          const: 1
+        type:
+          $ref: "#/components/schemas/DocumentType"
+        title:
+          type: string
+        recordHash:
+          $ref: "#/components/schemas/Sha256"
+      required:
+        - clientDocId
+        - documentId
+        - version
+        - type
+        - title
+        - recordHash
+    CompleteVisitResponse:
+      type: object
+      properties:
+        bundleId:
+          type: string
+          format: uuid
+          description: Bundle UUID.
+        visitId:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,120}$
+          description: Visit ID.
+        visitStatus:
+          const: COMPLETED
+        receivedAt:
+          $ref: "#/components/schemas/Timestamp"
+        recordHash:
+          $ref: "#/components/schemas/Sha256"
+        documents:
+          type: array
+          items:
+            $ref: "#/components/schemas/CompletedDocument"
+        followUpId:
+          anyOf:
+            - type: string
+              pattern: ^[A-Za-z0-9._:-]{1,120}$
+              description: Front-desk follow-up request ID.
+            - type: "null"
+      required:
+        - bundleId
+        - visitId
+        - visitStatus
+        - receivedAt
+        - recordHash
+        - documents
+        - followUpId
+    AddendumRequest:
+      type: object
+      properties:
+        clientAddendumId:
+          type: string
+          format: uuid
+          description: Must equal the Idempotency-Key header.
+        baseVersion:
+          type: integer
+          minimum: 1
+          description: The latest version the doctor reviewed.
+        reason:
+          type: string
+          minLength: 5
+          maxLength: 500
+        title:
+          type: string
+          minLength: 1
+          maxLength: 120
+        pages:
+          type: array
+          items:
+            $ref: "#/components/schemas/PageInput"
+          minItems: 1
+          maxItems: 60
+          description: The complete page set of the new version. Unchanged pages reuse their existing hashes.
+        pdfSha256:
+          $ref: "#/components/schemas/Sha256"
+        inkSha256:
+          anyOf:
+            - $ref: "#/components/schemas/Sha256"
+            - type: "null"
+        inkFormat:
+          anyOf:
+            - type: string
+              pattern: ^samford-ink(-placeholder)?/[0-9]+$
+            - type: "null"
+        routing:
+          $ref: "#/components/schemas/Routing"
+        hints:
+          $ref: "#/components/schemas/Hints"
+        signedAt:
+          $ref: "#/components/schemas/Timestamp"
+      required:
+        - clientAddendumId
+        - baseVersion
+        - reason
+        - pages
+        - pdfSha256
+        - inkSha256
+        - inkFormat
+        - signedAt
+      additionalProperties: false
+    AddendumResponse:
+      type: object
+      properties:
+        documentId:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,120}$
+          description: Document ID.
+        version:
+          type: integer
+          minimum: 2
+        previousVersion:
+          type: integer
+          minimum: 1
+        recordHash:
+          $ref: "#/components/schemas/Sha256"
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+      required:
+        - documentId
+        - version
+        - previousVersion
+        - recordHash
+        - createdAt
+    PageRef:
+      type: object
+      properties:
+        index:
+          type: integer
+        pngSha256:
+          $ref: "#/components/schemas/Sha256"
+        widthPx:
+          type: integer
+        heightPx:
+          type: integer
+        url:
+          type: string
+          description: Short-lived signed absolute URL; no Authorization header needed.
+      required:
+        - index
+        - pngSha256
+        - widthPx
+        - heightPx
+        - url
+    DocumentVersion:
+      type: object
+      properties:
+        version:
+          type: integer
+          minimum: 1
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+        signedAt:
+          $ref: "#/components/schemas/Timestamp"
+        reason:
+          anyOf:
+            - type: string
+              description: Addendum reason; null for version 1.
+            - type: "null"
+        authorName:
+          type: string
+        title:
+          type: string
+        pages:
+          type: array
+          items:
+            $ref: "#/components/schemas/PageRef"
+        pdfSha256:
+          $ref: "#/components/schemas/Sha256"
+        pdfUrl:
+          type: string
+        inkSha256:
+          anyOf:
+            - $ref: "#/components/schemas/Sha256"
+            - type: "null"
+        inkFormat:
+          anyOf:
+            - type: string
+            - type: "null"
+        inkUrl:
+          anyOf:
+            - type: string
+            - type: "null"
+        recordHash:
+          $ref: "#/components/schemas/Sha256"
+        urlsExpireAt:
+          $ref: "#/components/schemas/Timestamp"
+      required:
+        - version
+        - createdAt
+        - signedAt
+        - reason
+        - authorName
+        - title
+        - pages
+        - pdfSha256
+        - pdfUrl
+        - inkSha256
+        - inkFormat
+        - inkUrl
+        - recordHash
+        - urlsExpireAt
+    Recipient:
+      type: object
+      properties:
+        kind:
+          $ref: "#/components/schemas/RecipientKind"
+        labId:
+          anyOf:
+            - type: string
+              pattern: ^[A-Za-z0-9._:-]{1,120}$
+              description: Lab ID for LAB recipients.
+            - type: "null"
+        name:
+          type: string
+        state:
+          $ref: "#/components/schemas/DeliveryState"
+        version:
+          type: integer
+          minimum: 1
+        updatedAt:
+          $ref: "#/components/schemas/Timestamp"
+        note:
+          anyOf:
+            - type: string
+            - type: "null"
+      required:
+        - kind
+        - labId
+        - name
+        - state
+        - version
+        - updatedAt
+        - note
+    ClinicalDocument:
+      type: object
+      properties:
+        documentId:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,120}$
+          description: Stable document ID.
+        visitId:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,120}$
+          description: Visit ID.
+        patientId:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,120}$
+          description: Patient ID.
+        type:
+          $ref: "#/components/schemas/DocumentType"
+        title:
+          type: string
+        author:
+          type: object
+          properties:
+            doctorId:
+              type: string
+              pattern: ^[A-Za-z0-9._:-]{1,120}$
+              description: Author doctor ID.
+            name:
+              type: string
+          required:
+            - doctorId
+            - name
+        latestVersion:
+          type: integer
+          minimum: 1
+        routing:
+          $ref: "#/components/schemas/Routing"
+        hints:
+          anyOf:
+            - $ref: "#/components/schemas/Hints"
+            - type: "null"
+        versions:
+          type: array
+          items:
+            $ref: "#/components/schemas/DocumentVersion"
+          description: Oldest first. Every version is immutable.
+        recipients:
+          type: array
+          items:
+            $ref: "#/components/schemas/Recipient"
+          description: Recipients of the latest version.
+      required:
+        - documentId
+        - visitId
+        - patientId
+        - type
+        - title
+        - author
+        - latestVersion
+        - routing
+        - hints
+        - versions
+        - recipients
+    LabResult:
+      type: object
+      properties:
+        resultId:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,120}$
+          description: Result ID.
+        documentId:
+          anyOf:
+            - type: string
+              pattern: ^[A-Za-z0-9._:-]{1,120}$
+              description: Investigations document this answers.
+            - type: "null"
+        labId:
+          anyOf:
+            - type: string
+              pattern: ^[A-Za-z0-9._:-]{1,120}$
+              description: Lab ID.
+            - type: "null"
+        testName:
+          type: string
+        value:
+          type: string
+        unit:
+          anyOf:
+            - type: string
+            - type: "null"
+        refRange:
+          anyOf:
+            - type: string
+            - type: "null"
+        flag:
+          anyOf:
+            - type: string
+              enum:
+                - NORMAL
+                - ABNORMAL
+                - CRITICAL
+            - type: "null"
+        reportedAt:
+          $ref: "#/components/schemas/Timestamp"
+        summary:
+          anyOf:
+            - type: string
+            - type: "null"
+        reportPdfSha256:
+          anyOf:
+            - $ref: "#/components/schemas/Sha256"
+            - type: "null"
+        reportUrl:
+          anyOf:
+            - type: string
+            - type: "null"
+      required:
+        - resultId
+        - documentId
+        - labId
+        - testName
+        - value
+        - unit
+        - refRange
+        - flag
+        - reportedAt
+        - summary
+        - reportPdfSha256
+        - reportUrl
+    RecordVisit:
+      type: object
+      properties:
+        visitId:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,120}$
+          description: Visit ID.
+        date:
+          $ref: "#/components/schemas/LocalDate"
+        doctorId:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,120}$
+          description: Doctor ID.
+        doctorName:
+          type: string
+        department:
+          type: string
+        status:
+          $ref: "#/components/schemas/QueueStatus"
+        completedAt:
+          anyOf:
+            - $ref: "#/components/schemas/Timestamp"
+            - type: "null"
+        documents:
+          type: array
+          items:
+            $ref: "#/components/schemas/ClinicalDocument"
+      required:
+        - visitId
+        - date
+        - doctorId
+        - doctorName
+        - department
+        - status
+        - completedAt
+        - documents
+    PatientRecord:
+      type: object
+      properties:
+        patient:
+          $ref: "#/components/schemas/PatientSummary"
+        allergies:
+          type: array
+          items:
+            $ref: "#/components/schemas/Allergy"
+        visits:
+          type: array
+          items:
+            $ref: "#/components/schemas/RecordVisit"
+          description: Newest first.
+        labResults:
+          type: array
+          items:
+            $ref: "#/components/schemas/LabResult"
+        generatedAt:
+          $ref: "#/components/schemas/Timestamp"
+      required:
+        - patient
+        - allergies
+        - visits
+        - labResults
+        - generatedAt
+    VisitDelivery:
+      type: object
+      properties:
+        visitId:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,120}$
+          description: Visit ID.
+        documents:
+          type: array
+          items:
+            type: object
+            properties:
+              documentId:
+                type: string
+                pattern: ^[A-Za-z0-9._:-]{1,120}$
+                description: Document ID.
+              version:
+                type: integer
+              type:
+                $ref: "#/components/schemas/DocumentType"
+              title:
+                type: string
+              recipients:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Recipient"
+            required:
+              - documentId
+              - version
+              - type
+              - title
+              - recipients
+      required:
+        - visitId
+        - documents
+    Event:
+      type: object
+      properties:
+        eventId:
+          type: string
+          pattern: ^[0-9]+$
+          description: Monotonic per server; compare numerically.
+        type:
+          type: string
+          description: Ignore unknown types.
+        at:
+          $ref: "#/components/schemas/Timestamp"
+        message:
+          type: string
+          description: Display text. Patient-facing text contains no diagnosis or result values.
+        visitId:
+          anyOf:
+            - type: string
+              pattern: ^[A-Za-z0-9._:-]{1,120}$
+              description: Visit ID.
+            - type: "null"
+        documentId:
+          anyOf:
+            - type: string
+              pattern: ^[A-Za-z0-9._:-]{1,120}$
+              description: Document ID.
+            - type: "null"
+        patientId:
+          anyOf:
+            - type: string
+              pattern: ^[A-Za-z0-9._:-]{1,120}$
+              description: Patient ID.
+            - type: "null"
+        data:
+          type: object
+      required:
+        - eventId
+        - type
+        - at
+        - message
+        - visitId
+        - documentId
+        - patientId
+        - data
+    EventPage:
+      type: object
+      properties:
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/Event"
+        nextCursor:
+          type: string
+          description: Opaque. Send it unchanged as cursor.
+        hasMore:
+          type: boolean
+        serverTime:
+          $ref: "#/components/schemas/Timestamp"
+      required:
+        - events
+        - nextCursor
+        - hasMore
+        - serverTime
+    BlobReceipt:
+      type: object
+      properties:
+        sha256:
+          $ref: "#/components/schemas/Sha256"
+        size:
+          type: integer
+        mediaType:
+          type: string
+        widthPx:
+          anyOf:
+            - type: integer
+            - type: "null"
+        heightPx:
+          anyOf:
+            - type: integer
+            - type: "null"
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+        created:
+          type: boolean
+          description: False when the identical blob already existed.
+      required:
+        - sha256
+        - size
+        - mediaType
+        - widthPx
+        - heightPx
+        - createdAt
+        - created
+    OtpRequest:
+      type: object
+      properties:
+        mobile:
+          type: string
+          pattern: ^[0-9]{10}$
+        deviceId:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{8,128}$
+      required:
+        - mobile
+        - deviceId
+      additionalProperties: false
+    OtpChallenge:
+      type: object
+      properties:
+        challengeId:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,120}$
+          description: Challenge ID.
+        expiresAt:
+          $ref: "#/components/schemas/Timestamp"
+        resendAfterSeconds:
+          type: integer
+        demoCode:
+          type: string
+          pattern: ^[0-9]{6}$
+          description: "SYNTHETIC DEMO ONLY: no SMS provider exists, so the code is returned here."
+        demoNotice:
+          type: string
+      required:
+        - challengeId
+        - expiresAt
+        - resendAfterSeconds
+        - demoCode
+        - demoNotice
+    OtpVerify:
+      type: object
+      properties:
+        challengeId:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,120}$
+          description: Challenge ID.
+        code:
+          type: string
+          pattern: ^[0-9]{6}$
+        deviceId:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{8,128}$
+        deviceName:
+          type: string
+          maxLength: 80
+      required:
+        - challengeId
+        - code
+        - deviceId
+      additionalProperties: false
+    Profile:
+      type: object
+      properties:
+        profileId:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,120}$
+          description: Equals patientId.
+        uhid:
+          type: string
+        name:
+          type: string
+        age:
+          type: integer
+        sex:
+          $ref: "#/components/schemas/Sex"
+      required:
+        - profileId
+        - uhid
+        - name
+        - age
+        - sex
+    ProfileList:
+      type: object
+      properties:
+        profiles:
+          type: array
+          items:
+            $ref: "#/components/schemas/Profile"
+      required:
+        - profiles
+    PatientSession:
+      type: object
+      properties:
+        token:
+          type: string
+        tokenType:
+          const: Bearer
+        expiresAt:
+          $ref: "#/components/schemas/Timestamp"
+        deviceId:
+          type: string
+        account:
+          $ref: "#/components/schemas/PatientAccount"
+        profiles:
+          type: array
+          items:
+            $ref: "#/components/schemas/Profile"
+      required:
+        - token
+        - tokenType
+        - expiresAt
+        - deviceId
+        - account
+        - profiles
+    ViewedRequest:
+      type: object
+      properties:
+        version:
+          type: integer
+          minimum: 1
+      required:
+        - version
+      additionalProperties: false
+    ViewedResponse:
+      type: object
+      properties:
+        documentId:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,120}$
+          description: Document ID.
+        version:
+          type: integer
+        state:
+          $ref: "#/components/schemas/DeliveryState"
+        viewedAt:
+          $ref: "#/components/schemas/Timestamp"
+      required:
+        - documentId
+        - version
+        - state
+        - viewedAt
+    Notification:
+      type: object
+      properties:
+        notificationId:
+          type: string
+          pattern: ^[0-9]+$
+        profileId:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,120}$
+          description: Profile ID.
+        type:
+          type: string
+        title:
+          type: string
+        body:
+          type: string
+          description: Generic text without diagnoses or result values.
+        at:
+          $ref: "#/components/schemas/Timestamp"
+        documentId:
+          anyOf:
+            - type: string
+              pattern: ^[A-Za-z0-9._:-]{1,120}$
+              description: Document ID.
+            - type: "null"
+        visitId:
+          anyOf:
+            - type: string
+              pattern: ^[A-Za-z0-9._:-]{1,120}$
+              description: Visit ID.
+            - type: "null"
+      required:
+        - notificationId
+        - profileId
+        - type
+        - title
+        - body
+        - at
+        - documentId
+        - visitId
+    NotificationPage:
+      type: object
+      properties:
+        notifications:
+          type: array
+          items:
+            $ref: "#/components/schemas/Notification"
+        nextCursor:
+          type: string
+        hasMore:
+          type: boolean
+        serverTime:
+          $ref: "#/components/schemas/Timestamp"
+      required:
+        - notifications
+        - nextCursor
+        - hasMore
+        - serverTime

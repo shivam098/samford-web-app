@@ -17,6 +17,7 @@ import { Context, visible, safeEntity, slotsFor } from './context.js';
 import { snapshot, report, csv } from './reporting.js';
 import { scheduledChecks } from './admin.js';
 import { makePdf, validateUploadedFile } from './documents.js';
+import { mobileRouter } from './mobile-api.js';
 
 const demoIds = ['doctor-a', 'doctor-b', 'resident', 'super', 'super-two', 'admin', 'head', 'it', 'auditor', 'desk', 'cashier', 'desk-cashier', 'pharmacy', 'store', 'nurse', 'lab', 'verifier', 'ot', 'mrd', 'services', 'services-two', 'manager', 'manager-two', 'family', 'other-family'];
 const escape = (text: string) => text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
@@ -96,7 +97,7 @@ function apiReference(): Data {
   ]) paths[path] = { [method]: { summary, responses: { '200': { description: 'Success within the caller scope' }, '401': { description: 'Sign-in/lock/onboarding required' }, '403': { description: 'Role or scope denied' } } } };
   return { openapi: '3.1.0', info: { title: 'Samford synthetic workflow API', version: applicationVersion, description: 'Public, shared synthetic demo. Not production authentication, clinical software, legal signing, medical advice or a live integration. Every mutation is transactional. Money is stored in integer paise. All external effects are simulated.' }, servers: [{ url: '/' }], paths };
 }
-export function createApplication(options: { database: string; dist?: string; test?: boolean }) {
+export function createApplication(options: { database: string; dist?: string; test?: boolean; relaxedLimits?: boolean; testSupport?: boolean; isolated?: boolean }) {
   const store = new Store(options.database);
   try { seed(store); migrate(store); scheduledChecks(store); }
   catch (error) { store.close(); throw error; }
@@ -110,7 +111,12 @@ export function createApplication(options: { database: string; dist?: string; te
       'Cache-Control': 'no-store'
     });
     const host = (req.headers.host ?? '').toLowerCase();
-    if (!/^(localhost|127\.0\.0\.1)(:\d+)?$/.test(host) && !/^[a-z0-9-]+\.trycloudflare\.com$/.test(host)) return res.status(403).json({ code: 'HOST_DENIED', message: 'This host is not configured for the local synthetic demo.', retryable: false });
+    // IP-literal hosts cannot be used for DNS rebinding; 10.0.2.2 is the Android emulator's alias for host loopback.
+    const allowedHost = /^(localhost|127\.0\.0\.1|10\.0\.2\.2)(:\d+)?$/.test(host) || /^[a-z0-9-]+\.trycloudflare\.com$/.test(host) || (options.isolated === true && /^\d{1,3}(\.\d{1,3}){3}(:\d+)?$/.test(host));
+    if (!allowedHost) return res.status(403).json({ code: 'HOST_DENIED', message: 'This host is not configured for the local synthetic demo.', retryable: false });
+    // Mobile routes authenticate only with bearer tokens, never cookies, so browser CSRF checks do not apply.
+    const mobilePath = /^\/api\/mobile\/v1(\/|$)/.test(req.path) || (options.testSupport === true && /^\/api\/test-support\//.test(req.path));
+    if (mobilePath && !req.path.includes('..')) return next();
     if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
       const origin = req.headers.origin;
       let sameOrigin = !origin;
@@ -124,8 +130,9 @@ export function createApplication(options: { database: string; dist?: string; te
     next();
   });
   const limits = new Map<string, { started: number; count: number }>();
+  app.use('/api/mobile/v1', mobileRouter(store, { relaxedLimits: options.relaxedLimits || options.test, testSupport: options.testSupport }));
   app.use('/api', (req, res, next) => {
-    if (options.test) return next();
+    if (options.test || options.relaxedLimits) return next();
     const ip = String(req.headers['cf-connecting-ip'] ?? req.socket.remoteAddress);
     const category = req.path.startsWith('/auth') || req.path === '/access' ? 'auth' : 'api';
     const key = `${ip}:${category}`; let limit = limits.get(key);

@@ -13,12 +13,16 @@
     "package:candidate": "node scripts/release.mjs",
     "backup:shared": "node scripts/backup.mjs",
     "coverage": "node --import tsx scripts/coverage.ts",
+    "contract": "node --import tsx scripts/contract.ts",
+    "mobile:isolated": "node --import tsx scripts/mobile-isolated.ts",
     "check": "npm run build && npm test && npm run test:browser && npm run coverage"
   },
   "dependencies": {
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1",
     "express": "^5.1.0",
-    "pdfkit": "^0.17.2",
     "pdf-lib": "^1.17.1",
+    "pdfkit": "^0.17.2",
     "qrcode": "^1.5.4",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
@@ -34,7 +38,10 @@
     "esbuild": "^0.25.11",
     "pdfjs-dist": "^6.4.299",
     "tsx": "^4.20.6",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "yaml": "2.9.1"
   },
-  "engines": { "node": ">=24.0.0" }
+  "engines": {
+    "node": ">=24.0.0"
+  }
 }
