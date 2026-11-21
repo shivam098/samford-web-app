@@ -38,7 +38,8 @@ The apps read this file and fall back to their last known good URL or a manually
 
 - `apiBaseUrl` is the **complete** mobile base including `/api/mobile/v1`. Append operation paths such as `/doctor/queue`. It is `null` when `status` is `offline`.
 - `status` is `online`, `offline` or `maintenance`. GitHub caches raw gist content for a few minutes; always validate a candidate URL with `GET {apiBaseUrl}/meta` before switching.
-- The Quick Tunnel URL changes whenever the tunnel restarts. The tunnel start script updates the gist automatically.
+- The Quick Tunnel URL changes whenever the tunnel restarts. A Windows scheduled task on the host checks the app and tunnel at sign-in and every 5 minutes. After a restart it publishes the new address to this gist (then the permanent web link) within one check. When the API stops answering, re-read discovery and validate with `GET /meta` before switching.
+- The web desks also have a permanent link, `https://shivam098.github.io/samford/`, which forwards to the current tunnel with the path, query and hash kept. It is a redirect page for browsers, not an API base: never send API calls to it.
 
 ### Isolated backend for development and CI
 

@@ -17,7 +17,8 @@ The doctor writes on a Samsung tablet ([shivam098/samford-doctor-android](https:
 Dispensing, lab results and patient views flow back to the tablet. A returning patient's earlier documents are visible to the treating doctor.
 
 - **Contract:** [`docs/mobile-api-v1.yaml`](docs/mobile-api-v1.yaml) (OpenAPI 3.1, generated from `shared/mobile-contract.ts`) and [`docs/mobile-sync.md`](docs/mobile-sync.md): authentication, idempotency, offline completion, record hashes, delivery states, feeds, authorization, errors, limits and seed data.
-- **Discovery:** the apps read `https://gist.githubusercontent.com/shivam098/a4237b7aa37de0c876d5c08a3c250d52/raw/samford-endpoint.json`. `Start-Tunnel.ps1` keeps it current.
+- **Discovery:** the apps read `https://gist.githubusercontent.com/shivam098/a4237b7aa37de0c876d5c08a3c250d52/raw/samford-endpoint.json`. The Windows watchdog keeps it current (see [Permanent link and Windows recovery](#permanent-link-and-windows-recovery)).
+- **Permanent web link:** `https://shivam098.github.io/samford/` forwards to the current tunnel, keeping the path, query and hash (for example `https://shivam098.github.io/samford/#journey/SJ10`). It is a redirect page for people, not an API base; apps use the discovery file.
 - **Web desks:**
   - Pharmacy dispensing (SJ10), Sample collection (SJ14) and Results & verification (SJ15) list the routed handwritten copies. Opening a copy records **Viewed** for the doctor. Each copy has zoom, page and version navigation and the signed PDF.
   - Patients see their documents under **My documents** (SJ36). Doctors see them in History & allergies (DJ07) and in the visit workspace.
@@ -66,10 +67,10 @@ Packaging freezes the backend bundle, built assets and licensed fonts in a new c
 For an explicitly agreed live upgrade:
 
 1. Ask testers to sync/review pending work and close their tabs. Retain the old release and browser profiles; do not clear encrypted drafts.
-2. Stop only the known live server process, not all Node processes. The existing Cloudflare tunnel may keep running against 4317 during the brief outage.
+2. Pause the Windows watchdog so it doesn't restart the old release during the upgrade: `Disable-ScheduledTask -TaskName "Public link watchdog - samford"`. Then stop only the known live server process (check its PID and `.\server.mjs` command line under the `Start-Release.ps1` launcher), not all Node processes. The watchdog's tunnel keeps running against 4317 during the brief outage.
 3. Run `npm run backup:shared`. It takes a consistent SQLite online backup and checks integrity. Do **not** copy only a WAL-active `.sqlite` file.
 4. Prove the migration on a copy: `node --import tsx scripts\verify-upgrade.ts --backup <backup> --mode dry-run --out data\upgrade-dryrun.json`. Every original record, version, credential, receipt, audit entry and session must stay byte-identical. The dry-run then runs the startup jobs on the copy and records exactly which records they will append System versions to, such as missed 22:00 presence resets.
-5. Run `.\Start-Release.ps1 -ReleaseDirectory 'data\releases\<verified-release-folder>' -Port 4317 -UseSharedData`. This is the explicit shared-data switch. Port binding and frontend-version checks occur before database initialization.
+5. Point the watchdog at the verified release: in `%LOCALAPPDATA%\PublicLinks\samford\config.json`, change the `-ReleaseDirectory` folder in `app.command`. Then `Enable-ScheduledTask` and `Start-ScheduledTask -TaskName "Public link watchdog - samford"`. The task runs `.\Start-Release.ps1 -ReleaseDirectory '<verified-release-folder>' -Port 4317 -UseSharedData`, the explicit shared-data switch. Port binding and frontend-version checks occur before database initialization. Without the watchdog, run that `Start-Release.ps1` command directly.
 6. Confirm `/api/health` reports the release version, then run `node --import tsx scripts\verify-upgrade.ts --backup <backup> --mode live --expect data\upgrade-dryrun.json`. Original version rows must be byte-identical, current rows may only gain newer versions, and every System version must match the dry-run prediction. Reload the browser and verify the intended persona and worklist.
 
 Schema v2 adds staff role metadata, a dual-role sample identity, a canonical synthetic scheme package and missing payer tariffs. Schema v3 adds:
@@ -95,22 +96,54 @@ This opt-in check is only for the original local v1 deployment. Ordinary cloned-
 
 Rollback before accepting v2 writes can restore the verified pre-upgrade backup and old frozen runtime. **Do not run the old backend on a database with new v2 writes or overwrite new work to roll back.** After new writes, preserve that database and reconcile/migrate forward instead.
 
-### Temporary public link
+### Permanent link and Windows recovery
 
-With the intentionally selected live app already running on 4317 and `cloudflared` installed:
+The live demo is supervised by Windows, not by a terminal or Copilot session:
+
+| What | Where |
+|---|---|
+| Permanent web link | `https://shivam098.github.io/samford/` (public Pages repo `shivam098/samford`; a redirect page holding only the current tunnel address) |
+| API discovery for the apps | the gist above (`status`, `apiBaseUrl`) |
+| Scheduled task | `Public link watchdog - samford`: at Windows sign-in and every 5 minutes, hidden, under the normal account |
+| Config, state and logs (not in Git) | `%LOCALAPPDATA%\PublicLinks\samford\`: `config.json`, `state.json`, `ensure.log` (checks), `app.log` (server output), `publish.log` (gist and Pages updates), `tunnel-*.log` |
+
+Each check runs the localhost public link kit's `Ensure-PublicLink.ps1`, installed in that folder's `runtime\`:
+1. If `http://127.0.0.1:4317/api/health` doesn't answer as the synthetic demo and the port is free, it starts the release named in `config.json` (`Start-Release.ps1 ... -Port 4317 -UseSharedData`). An occupied, unhealthy port is reported, never killed.
+2. If its own Quick Tunnel doesn't answer, it starts a new one. The new address is random.
+3. When the permanent link points elsewhere, it runs `scripts\Publish-PublicEndpoint.ps1`. That script updates the discovery gist first and reads it back, then repoints the Pages link. If the gist update fails, it exits non-zero so the next check retries. It reads the `shivam098` token from `gh` at runtime; the token is never stored.
+
+Recovery needs the PC on and the user signed in. After a reboot, a crash or a dead tunnel, the demo is back within one 5-minute check, usually at a **new tunnel address**, and the gist and permanent link follow automatically. Browser drafts belong to the old address's origin, so sync before a planned restart.
 
 ```powershell
-.\Start-Tunnel.ps1
+$cfg = "$env:LOCALAPPDATA\PublicLinks\samford\config.json"
+$kit = "$env:LOCALAPPDATA\PublicLinks\samford\runtime"
+Start-ScheduledTask -TaskName "Public link watchdog - samford"     # run a check now
+Get-ScheduledTaskInfo -TaskName "Public link watchdog - samford"   # LastTaskResult 0 = healthy
+Disable-ScheduledTask -TaskName "Public link watchdog - samford"   # pause recovery (the app keeps running)
+Enable-ScheduledTask -TaskName "Public link watchdog - samford"    # resume, then Start-ScheduledTask
+& "$kit\Set-PublicLinkSharing.ps1" -ConfigPath $cfg -Off; .\scripts\Publish-PublicEndpoint.ps1 -Offline   # sharing off
+& "$kit\Set-PublicLinkSharing.ps1" -ConfigPath $cfg -On            # sharing on: new tunnel, gist and link republished
+& "$kit\Register-PublicLinkWatchdog.ps1" -ConfigPath $cfg -Unregister   # remove the task; data and config stay
 ```
 
-The script:
-1. Starts cloudflared and reads the random `https://....trycloudflare.com` address.
-2. Waits until the mobile API answers through it.
-3. Writes `data\tunnel.json`.
-4. Publishes the address to the discovery gist as `online`. It uses the `shivam098` GitHub credential from `gh` at runtime for that process only; the token is never stored.
-5. Waits while the tunnel runs. If cloudflared exits, it marks the gist `offline`.
+Turning sharing off needs **both** commands. The kit's `-Off` stops the tunnel, pauses the watchdog and shows "offline" on the permanent link, but it doesn't touch the gist. `Publish-PublicEndpoint.ps1 -Offline` marks the gist offline. Localhost keeps working either way. To restart the server, stop the exact node process (check its PID and `.\server.mjs` command line); the next check starts it again, or run the task now. Install or update the kit from `Downloads\Localhost-Public-Link-Skill` with `Register-PublicLinkWatchdog.ps1 -ConfigPath $cfg`.
 
-Use `-NoGist` to skip publishing. The address changes whenever a new Quick Tunnel starts. The computer must remain awake and **both the app and tunnel processes must remain running**. No Cloudflare account or named tunnel is configured.
+`config.json` (no secrets, no `%` characters):
+
+```json
+{
+  "name": "Samford workflow lab (synthetic demo)", "slug": "samford", "githubUser": "shivam098", "pagesRepo": "shivam098/samford",
+  "port": 4317, "healthPath": "/api/health", "expectedStatus": 200, "healthMarker": "\"synthetic\":true",
+  "publishScript": "<project>\\scripts\\Publish-PublicEndpoint.ps1",
+  "app": {
+    "workingDirectory": "<project>",
+    "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -NoProfile -NonInteractive -File \"<project>\\Start-Release.ps1\" -ReleaseDirectory \"<project>\\data\\releases\\<release>\" -Port 4317 -UseSharedData",
+    "startTimeoutSeconds": 90
+  }
+}
+```
+
+**Without the watchdog** (another machine), `.\Start-Tunnel.ps1` starts a temporary tunnel and publishes it with the same publisher, then marks everything offline when cloudflared exits. It refuses to run while the watchdog task exists, so the app never has two publishers. `-NoPublish` skips publishing. No Cloudflare account or named tunnel is configured.
 
 The public demo has no access password **by explicit product-owner choice**. Persona sessions, server-side role checks, same-origin mutation checks, body/rate limits and private document routes still apply. The SQLite database, filesystem, source files, original PRDs, logs and test artifacts are not HTTP-served. Only built frontend assets and intentionally exposed API/profile/board routes are served.
 
@@ -149,7 +182,7 @@ The landing page's **Test sign-in / onboarding** opens the full synthetic authen
 - Retry the **identical operation** after an uncertain/lost response. Reusing an operation ID with different content fails. Record/context conflicts retain both versions and require an explicit reviewed replacement or abandonment.
 - Rejections remain per-item, while independent ready work can continue. Hospital acceptance does not imply pharmacy/lab receipt, clinical acknowledgement, payment or completion.
 - Role revocation and remote sign-out block the next server check. Browser wipe remains pending until this app reports its own cache removal and unsent recovery/loss count. It cannot wipe personal files or an unreachable device.
-- Browser caches are origin-specific. Prefer the stable localhost URL for offline/restart testing; a replacement Quick Tunnel URL is a different browser origin.
+- Browser caches are origin-specific. Prefer the stable localhost URL for offline/restart testing. After a tunnel restart the permanent link opens a new origin; unsent drafts stay with the old address's origin.
 - Do not run competing copies of the app against different replicas of the OneDrive data directory. This is a single local mock server, not a distributed database.
 
 ## Training controls
@@ -232,6 +265,7 @@ Mobile backend evidence (part of `npm test` and `npm run test:browser`):
 | Mobile API (doctor tablet, patient app) | `shared\mobile-contract.ts`, `server\mobile-api.ts`, `server\mobile-auth.ts`, `server\mobile-validate.ts`, `server\test-support.ts`, `scripts\mobile-isolated.ts`, `scripts\contract.ts` |
 | Handwritten records | `server\handwriting.ts`, `server\handwriting-web.ts`, `server\blobs.ts`, `server\history.ts`, `server\fixtures.ts`, `shared\handwriting.ts`, `src\handwriting.tsx`, `fixtures\seed-history` |
 | Mobile and scale evidence | `tests\mobile-api.test.ts`, `tests\handwriting-browser.test.ts`, `scripts\load-test.ts`, `scripts\verify-upgrade.ts` |
-| Release isolation | `scripts\release.mjs`, `scripts\backup.mjs`, `Start-Candidate.ps1`, `Start-Release.ps1`, `Start-Tunnel.ps1` |
+| Release isolation | `scripts\release.mjs`, `scripts\backup.mjs`, `Start-Candidate.ps1`, `Start-Release.ps1` |
+| Public link | `scripts\Publish-PublicEndpoint.ps1` (gist then Pages; used by the Windows watchdog), `Start-Tunnel.ps1` (manual fallback without the watchdog) |
 
 Original PRDs/session archives are read-only source references outside this project. They, their media, actual records and any real credentials were not copied here.

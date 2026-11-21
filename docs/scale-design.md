@@ -106,7 +106,7 @@ Content addressing removes duplicates (for example unchanged pages carried into 
 | SMS | None; the demo OTP is returned in the response and labelled | Real SMS provider; codes never returned |
 | Authentication | Public synthetic personas; device-bound bearer tokens | Hospital identity, MDM-managed tablets, refresh tokens, attestation |
 | Clinical signing | Immutable hash-chained record only | Same, plus legal e-signature if the hospital requires it |
-| Exposure | One temporary Cloudflare Quick Tunnel for testing | Managed ingress with WAF and DDoS protection |
+| Exposure | One Cloudflare Quick Tunnel for testing, supervised by a Windows scheduled task (a new random address after each restart, republished to discovery) | Managed ingress with WAF and DDoS protection on a stable domain |
 
 ## 5. Measured mock evidence
 
