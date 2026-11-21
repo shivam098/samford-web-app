@@ -6,6 +6,7 @@ import { Store, DomainError, requireThat } from './store.js';
 import { handoverPlan, applyHandover } from './handover.js';
 import { repeatedRosterDates, homeCards } from '../shared/home.js';
 import { validateHomeLayout } from './home.js';
+import { demoIds } from './personas.js';
 
 export function parseCsv(value: string): Data[] {
   const records: string[][] = []; let record: string[] = []; let field = ''; let quoted = false;
@@ -87,6 +88,22 @@ export function scheduledChecks(store: Store) {
       presenceReset(store, next, new Date(now).getTime() - new Date(`${next}T22:00:00+05:30`).getTime() > 60000);
       last = next;
     }
+    // Demo assumption: keep 14 days of published OPD sessions for the synthetic consultants so the desk can always book and check in.
+    // A real hospital publishes its own roster. Existing sessions (any status) and holidays are never overridden.
+    const covered = new Set(store.all('session').map(session => `${session.doctorId}|${text(session.data, 'date')}`));
+    const holidays = new Set(store.all('holiday').map(holiday => text(holiday.data, 'date')));
+    const published: string[] = [];
+    for (const doctor of store.people().filter(person => person.role === 'doctor' && person.state === 'Active' && demoIds.includes(person.id))) {
+      const room = text(store.maybe(doctor.id)?.data ?? {}, 'room') || 'Room 1';
+      for (let offset = 0; offset < 14; offset++) {
+        const date = istDate(new Date(new Date(now).getTime() + offset * 86400000).toISOString());
+        if (holidays.has(date) || covered.has(`${doctor.id}|${date}`) || store.maybe(`session-${doctor.id}-${date}`)) continue;
+        store.create('session', { name: `${doctor.id} ${date}`, doctorId: doctor.id, date, start: '08:00', end: '20:00', slotMinutes: 10, room, rollingDemoSession: true }, 'System',
+          { id: `session-${doctor.id}-${date}`, status: 'Published', doctorId: doctor.id, department: doctor.department });
+        covered.add(`${doctor.id}|${date}`); published.push(`${doctor.id} ${date}`);
+      }
+    }
+    if (published.length) store.audit('System', 'system', 'session.rollingPublish', 'session', null, { added: published.length, horizonDays: 14, demoAssumption: 'Synthetic rolling OPD sessions; a real hospital publishes its roster' });
     for (const account of store.all('account')) {
       if (account.status === 'Suspended' && text(account.data, 'endDate') && text(account.data, 'endDate') <= today) {
         const actor = store.person(account.id); actor.state = 'Active'; store.savePerson(actor);

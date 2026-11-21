@@ -25,6 +25,7 @@ Dispensing, lab results and patient views flow back to the tablet. A returning p
 - **Isolated backend for app development and CI:** `npm run mobile:isolated -- --port 4320 --data <empty folder> --reset --relaxed-limits --test-support`. This creates its own port and throwaway database, never the shared demo.
 - **Scale:** [`docs/scale-design.md`](docs/scale-design.md) describes the production design for 1 lakh patient-app users and 50 doctors. `npm run load-test` seeds 1 lakh synthetic patients into a throwaway database and writes [`docs/load-test-results.md`](docs/load-test-results.md). These are single-node mock measurements, not production capacity.
 - **Seeded history:** uses the tablet app's own `samford-ink/1` pages from `fixtures/seed-history` (see its `SOURCE.md`).
+- **Front desk to tablet:** the desk books and checks a patient in (SJ02-SJ04); the visit then appears in that doctor's tablet queue, marked returning when earlier visits exist. Demo assumption: a scheduled job keeps 14 days of published OPD sessions (08:00-20:00) for the demo consultants doctor-a, doctor-b and doctor-c so the desk can always book. It never replaces an existing session for that doctor and day and skips holidays; a real hospital publishes its own roster.
 
 Boundaries:
 - "Signed" means an immutable hash-chained record, not a legal e-signature.
@@ -155,7 +156,7 @@ The landing page's **Test sign-in / onboarding** opens the full synthetic authen
 
 **Sync & recovery:** disconnect this persona's simulated link, fail before acceptance, lose the reply after acceptance, inject a real remote version change, reject the next action, inspect the outbox and retry/review conflicts.
 
-**Demo controls:** operations/super admin can simulate provider outages and advance the shared clock. Scheduled checks perform missed 22:00 IST presence resets, exclude on-call/night duty, reactivate timed suspensions, process checked scheduled exits, expire bed reservations, apply approved future MRP changes, surface urgent/critical deadlines and run reminder jobs. A failed job stays visible.
+**Demo controls:** operations/super admin can simulate provider outages and advance the shared clock. Scheduled checks perform missed 22:00 IST presence resets, exclude on-call/night duty, reactivate timed suspensions, process checked scheduled exits, expire bed reservations, apply approved future MRP changes, surface urgent/critical deadlines, run reminder jobs and keep 14 days of published OPD sessions for the demo consultants. A failed job stays visible.
 
 **Reset:** only a super-admin persona can reset, after typing `RESET SHARED SYNTHETIC DATA`. It resets shared sample records and sessions, retains the audit, and does not silently erase browser drafts. Other testers are affected. Refresh/review old local actions after a reset.
 

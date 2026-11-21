@@ -6,7 +6,7 @@ This document defines the behaviour behind [`mobile-api-v1.yaml`](mobile-api-v1.
 
 ## 1. The paperless OPD journey
 
-1. The front desk registers the patient, books a slot and checks the patient in on the web app. The visit appears in the doctor's tablet queue (`GET /doctor/queue`, `QUEUE_UPDATED` events). A returning patient is flagged.
+1. The front desk registers the patient, books a slot and checks the patient in on the web app. The visit appears in the doctor's tablet queue (`GET /doctor/queue`, `QUEUE_UPDATED` events). A returning patient is flagged. Demo assumption: the backend keeps 14 days of published OPD sessions for doctor-a, doctor-b and doctor-c, so the desk can always book them.
 2. The doctor confirms the patient (`POST /doctor/queue/{queueEntryId}/start`) and may open the longitudinal record of a patient in active care (`GET /doctor/patients/{patientId}/record`): earlier visits, every signed handwritten document version, lab results and allergies.
 3. The doctor writes on the tablet. Nothing is sent while writing. Each document (visit summary, prescription, investigations, advice/referral, other) becomes page PNGs, one PDF containing exactly those pixels, and optional vector ink (`samford-ink/1`, defined by the doctor app repository).
 4. When the doctor marks the visit completed, the tablet uploads missing blobs and commits one **bundle** (`POST /doctor/visits/{visitId}/complete`). The bundle, routing, deliveries and visit completion commit atomically.

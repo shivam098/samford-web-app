@@ -749,6 +749,37 @@ test('secondary workflow guards: online refund, hold/recollection, narrative ima
   } finally { await f.close(); }
 });
 
+test('rolling demo OPD sessions keep the desk bookable after the seeded window without overriding admin sessions or holidays', async () => {
+  const f = await fixture();
+  try {
+    const admin = await f.client('admin');
+    const kept = datePlus(f.store.now(), 25); const holiday = datePlus(f.store.now(), 27);
+    await admin.cmd('session.save', { doctorId: 'doctor-b', date: kept, start: '09:00', end: '11:00', room: 'Room 2', slotMinutes: 10 });
+    await admin.cmd('holiday.save', { date: holiday, reason: 'Sample holiday' });
+    const before = f.store.all('session').length;
+    // Land on 10:00 IST twenty days ahead, so free same-day slots exist whatever time the suite runs.
+    const minutes = Math.round((Date.parse(`${datePlus(f.store.now(), 20)}T10:00:00+05:30`) - Date.parse(f.store.now())) / 60000);
+    await (await f.client('manager')).request('/api/demo/clock', 'POST', { minutes });
+    const today = istDate(f.store.now()); const sessions = f.store.all('session');
+    for (const doctorId of ['doctor-a', 'doctor-b', 'doctor-c']) for (let offset = 0; offset < 14; offset++) {
+      const date = datePlus(f.store.now(), offset);
+      const own = sessions.filter(session => session.doctorId === doctorId && text(session.data, 'date') === date);
+      assert.equal(own.length, date === holiday ? 0 : 1, `${doctorId} ${date}`);
+    }
+    assert.equal(text(sessions.find(session => session.doctorId === 'doctor-b' && text(session.data, 'date') === kept)!.data, 'start'), '09:00', 'the admin-published session is not replaced');
+    const added = f.store.all('session').length - before;
+    await (await f.client('manager')).request('/api/demo/clock', 'POST', { minutes: 1 });
+    assert.equal(f.store.all('session').length - before, added, 'running the job again adds nothing');
+    const desk = await f.client('desk');
+    const free = (await desk.request(`/api/slots?doctorId=doctor-c&date=${today}`) as Data[]).find(slot => slot.state === 'Free' && !slot.extra);
+    assert.ok(free, 'doctor C, who had no seeded sessions, is bookable today');
+    const visit = await desk.first('visit.book', { patientId: 'patient-b', doctorId: 'doctor-c', date: today, time: text(free, 'time'), mode: 'Walk-in', opdType: 'General', visitType: 'Follow-up' }, undefined, 'visit');
+    await desk.cmd('visit.checkin', { clearance: 'Collect at billing', priority: false }, visit.id);
+    assert.equal(f.store.get(visit.id).status, 'Waiting');
+    assert.ok(f.store.audits().some(entry => entry.action === 'session.rollingPublish'));
+  } finally { await f.close(); }
+});
+
 test('all journey rows have substantive API evidence (not route/render counts)', () => {
   const missing = journeys.filter(j => !evidence.has(j.id)).map(j => j.id);
   assert.deepEqual(missing, [], `Missing verified journey behavior: ${missing.join(', ')}`);

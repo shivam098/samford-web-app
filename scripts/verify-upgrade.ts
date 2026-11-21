@@ -1,5 +1,5 @@
 // Verifies an additive schema upgrade against a fresh pre-upgrade backup. Read-only on the shared database.
-// Usage: node --import tsx scripts/verify-upgrade.ts --backup <backup.sqlite> --mode dry-run|live [--expect <dry-run proof.json>] [--out <proof.json>]
+// Usage: node --import tsx scripts/verify-upgrade.ts --backup <backup.sqlite> --mode dry-run|live [--expect <dry-run proof.json>] [--database <live db>] [--out <proof.json>]
 // dry-run: migrates a temporary copy and requires every original row to stay byte-identical, then runs the startup jobs on that
 //          copy to predict exactly which records they will append System versions to after the real start.
 // live:    compares the running database with the same backup. History rows must be byte-identical, current rows may only gain
@@ -71,7 +71,7 @@ function insertOnlyTables(before: DatabaseSync, after: DatabaseSync, tables: [st
 const setting = (db: DatabaseSync, key: string) => { const row = db.prepare('SELECT body FROM settings WHERE key=?').get(key) as Row | undefined; return row ? JSON.parse(String(row.body)) : undefined; };
 
 let workingDirectory = '';
-let afterPath = resolve('data', 'samford.sqlite');
+let afterPath = resolve(args.get('database') ?? join('data', 'samford.sqlite'));
 if (mode === 'dry-run') {
   workingDirectory = mkdtempSync(join(tmpdir(), 'samford-upgrade-'));
   afterPath = join(workingDirectory, 'samford.sqlite');

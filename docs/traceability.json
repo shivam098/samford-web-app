@@ -1,12 +1,12 @@
 {
   "version": "0.3.0",
-  "generatedAt": "2026-11-21T04:11:40.978Z",
-  "apiRunAt": "2026-11-21T04:06:37.031Z",
+  "generatedAt": "2026-11-21T04:30:21.035Z",
+  "apiRunAt": "2026-11-21T04:25:18.057Z",
   "browserRunAt": [
-    "2026-11-21T04:08:20.739Z",
-    "2026-11-21T04:09:08.405Z",
-    "2026-11-21T04:11:39.445Z",
-    "2026-11-21T04:09:32.753Z"
+    "2026-11-21T04:27:00.717Z",
+    "2026-11-21T04:27:49.998Z",
+    "2026-11-21T04:30:18.701Z",
+    "2026-11-21T04:28:14.312Z"
   ],
   "scope": "All 87 named journeys have primary API and substantive browser evidence. Each row describes exactly what was exercised; rendering is a separate smoke-test dimension, not proof of every optional state.",
   "limitations": [
