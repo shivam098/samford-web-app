@@ -6,6 +6,7 @@ import { ActionPanel, type FormContext, type FormProps } from './forms.js';
 import { api, type Vault, type Pending } from './storage.js';
 import { Icon, Pill, Empty, ErrorBox, Detail, Modal, displayTime, human, Value } from './ui.js';
 import { RosterCalendar, AdmissionEstimate } from './workflow-fields.js';
+import { HandwritingViewer, handwritingDocumentId, latestHandwritten } from './handwriting.js';
 import { useI18n } from './i18n.js';
 import { localizedJourney } from '../shared/i18n.js';
 export type PageProps = {
@@ -183,7 +184,7 @@ export function JourneyPage({ id, ...props }: PageProps & { id: string }) {
           {selected.type === 'visit' && doctorRoles.includes(snapshot.actor.role) && <a className="button primary small" href={`#visit/${selected.id}`}>{t('Open visit workspace')}</a>}
           {selected.type === 'document' && selected.status === 'Available' && <a className="button secondary small" href={`/api/documents/${selected.id}/file`} target="_blank" rel="noreferrer">{t('Open document')}</a>}
           {selected.type === 'article' && text(selected.data, 'journey') && <a className="text-button" href={`#journey/${text(selected.data, 'journey')}`}>{t('Show me in the app')}</a>}
-        </div><Detail entity={selected} entities={snapshot.entities}/></>}
+        </div>{handwritingDocumentId(selected) && <HandwritingViewer key={handwritingDocumentId(selected)} documentId={handwritingDocumentId(selected)} snapshot={snapshot} submit={props.submit}/>}<Detail entity={selected} entities={snapshot.entities}/></>}
       </section>{canAct && <aside className="panel form-panel"><ActionPanel key={`${id}:${selectedId}`} journeyId={id} snapshot={snapshot} context={context} vault={props.vault} saveDraft={props.saveDraft} submit={props.submit}/></aside>}</div>
     </>}
     {history && <Modal title={t('Immutable version history')} wide onClose={() => setHistory(null)}>{history.map(e => <Detail key={e.version} entity={e} entities={snapshot.entities}/>)}</Modal>}
@@ -192,9 +193,10 @@ export function JourneyPage({ id, ...props }: PageProps & { id: string }) {
 export function VisitWorkspace({ id, ...props }: PageProps & { id: string }) {
   const { t, language } = useI18n();
   const { snapshot } = props; const visit = snapshot.entities.find(e => e.id === id && e.type === 'visit');
-  const [tab, setTab] = useState('Overview');
+  const [tab, setTab] = useState('Overview'); const [viewing, setViewing] = useState('');
   if (!visit || !doctorRoles.includes(snapshot.actor.role)) return <Empty title="Visit unavailable in your care scope"/>;
   const patient = snapshot.entities.find(e => e.id === visit.patientId)!;
+  const handwritten = latestHandwritten(snapshot.entities, patient.id);
   const allergies = snapshot.entities.filter(e => e.type === 'allergy' && e.patientId === patient.id && e.status === 'Active');
   const related = snapshot.entities.filter(e => e.patientId === patient.id);
   const context = { visitId: id, patientId: patient.id, targetId: id };
@@ -219,6 +221,11 @@ export function VisitWorkspace({ id, ...props }: PageProps & { id: string }) {
       {tab === 'Overview' ? <div className="overview-grid">
         <section className="panel"><div className="panel-heading"><h2>{t('Important now')}</h2><Icon name="heart"/></div><dl className="summary-list"><dt>{t('Allergy status')}</dt><dd>{allergies.length ? allergies.map(e => `${text(e.data, 'substance')}: ${text(e.data, 'reaction')}`).join('; ') : t('Not recorded - review before prescribing')}</dd><dt>{t('Latest note')}</dt><dd>{related.filter(e => e.type === 'note').at(-1)?.data.complaints?.toString() || t('No note saved yet')}</dd><dt>{t('Vitals')}</dt><dd>{related.some(e => e.type === 'vital') ? `${related.filter(e => e.type === 'vital').length} ${t('readings in the chart')}` : t('Not taken yet')}</dd><dt>{t('New reports')}</dt><dd>{related.filter(e => e.type === 'result' && e.status === 'Released').length} {t('Released')}</dd></dl></section>
         <section className="panel"><div className="panel-heading"><h2>{t('Consultation checklist')}</h2><Icon name="check"/></div><div className="finish-checklist">{[['Notes', 'note'], ['Medicines', 'rx'], ['Tests', 'order'], ['Follow-up', 'followup'], ['Referral', 'referral']].map(([title, type]) => <div key={type}><span className={related.some(e => e.type === type && (!text(e.data, 'visitId') || text(e.data, 'visitId') === visit.id)) ? 'complete-check' : 'optional-check'}><Icon name="check" size={15}/></span><strong>{t(title)}</strong><span>{related.filter(e => e.type === type && (!text(e.data, 'visitId') || text(e.data, 'visitId') === visit.id)).length || t('Not added')}</span></div>)}</div></section>
+        <section className="panel" data-handwritten-record><div className="panel-heading"><h2>{t('Handwritten record (doctor tablet)')}</h2><Icon name="file"/></div>
+          {handwritten.length ? <ul className="handwritten-list">{handwritten.map(doc => <li key={doc.id}><button className="record-link" data-handwritten-open={text(doc.data, 'documentId')} onClick={() => setViewing(text(doc.data, 'documentId'))}>{text(doc.data, 'title')} · v{num(doc.data, 'version')}</button>
+            <small>{text(doc.data, 'authorName')} · {displayTime(text(doc.data, 'signedAt'))}{text(doc.data, 'visitId') === visit.id ? ` · ${t('this visit')}` : ''}</small></li>)}</ul>
+            : <p className="micro">{t('No handwritten documents yet. Documents signed on the doctor tablet appear here after the visit is completed.')}</p>}
+        </section>
       </div> : <div className="workflow-columns"><section className="panel"><div className="panel-heading"><h2>{t(tab)} · {t('History')}</h2></div>{related.filter(e => tabTypes[tab].includes(e.type)).length ? related.filter(e => tabTypes[tab].includes(e.type)).map(e => <details className="record-details" key={e.id}><summary><span>{label(e)}</span><Pill>{e.status}</Pill></summary><Detail entity={e} entities={snapshot.entities}/></details>) : <Empty title={language === 'Hindi' ? `${t(tab)}: अभी कोई रिकॉर्ड नहीं` : `No ${tab.toLowerCase()} yet`}/>}</section><aside className="panel form-panel"><ActionPanel key={tab} journeyId={tabJourney[tab]} {...props} context={context}/></aside></div>}
     </div>
     <section className="visit-actions"><h2>{t('Visit actions')} <span className="micro">{t('Use in any order')}</span></h2><div className="action-grid">{[
@@ -226,6 +233,7 @@ export function VisitWorkspace({ id, ...props }: PageProps & { id: string }) {
       ['Allergies', 'allergy.add', 'shield'], ['Hold / cancel / move', 'visit.hold', 'more'], ['Print / share', 'document.generate', 'file'],
       ['Admit / OT', 'admission.request', 'heart'], ['Link ABHA', 'abha.request', 'shield']
     ].map(([title, name, icon]) => <button key={name} onClick={() => action(name)} disabled={!hasRole(snapshot.actor, commands.find(c => c.name === name)?.roles ?? [])}><Icon name={icon}/><span>{t(title)}</span><Icon name="arrow" size={15}/></button>)}</div><div className="finish-bar"><span className="micro">{language === 'Hindi' ? 'मंज़ूरी, पहुँच और पूरा होना अलग हैं। बाकी भुगतान परामर्श पूरा करने को नहीं रोकता।' : 'Approval, delivery and completion remain separate. Pending payment does not block finishing.'}</span><button className="button primary" disabled={!['In consultation', 'Held'].includes(visit.status)} onClick={() => action('visit.done')}>{t('Done & next')}<Icon name="arrow" size={17}/></button></div></section>
+        {viewing && <Modal title={t('Handwritten document')} wide onClose={() => setViewing('')}><HandwritingViewer documentId={viewing} snapshot={snapshot}/></Modal>}
   </>;
 }
 function DoctorMonthlyNumbers({ snapshot }: { snapshot: Snapshot }) {

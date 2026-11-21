@@ -32,7 +32,7 @@ export class Store {
       CREATE INDEX IF NOT EXISTS entities_type_document ON entities(type, json_extract(body,'$.data.documentId'));
       CREATE INDEX IF NOT EXISTS users_mobile ON users(json_extract(body,'$.mobile'));
       CREATE TABLE IF NOT EXISTS blobs(sha256 TEXT PRIMARY KEY, media_type TEXT NOT NULL, size INTEGER NOT NULL, width INTEGER, height INTEGER, created_at TEXT NOT NULL, created_by TEXT NOT NULL, bytes BLOB NOT NULL);
-      CREATE TABLE IF NOT EXISTS blob_refs(sha256 TEXT NOT NULL, document_entity_id TEXT NOT NULL, role TEXT NOT NULL, PRIMARY KEY(sha256, document_entity_id, role));
+      CREATE TABLE IF NOT EXISTS blob_refs(sha256 TEXT NOT NULL, document_entity_id TEXT NOT NULL, role TEXT NOT NULL, patient_id TEXT, doctor_id TEXT, PRIMARY KEY(sha256, document_entity_id, role));
       CREATE INDEX IF NOT EXISTS blob_refs_document ON blob_refs(document_entity_id);
       CREATE TABLE IF NOT EXISTS feed_events(seq INTEGER PRIMARY KEY AUTOINCREMENT, audience TEXT NOT NULL, type TEXT NOT NULL, at TEXT NOT NULL, body TEXT NOT NULL);
       CREATE INDEX IF NOT EXISTS feed_events_audience ON feed_events(audience, seq);
@@ -42,6 +42,12 @@ export class Store {
       CREATE TABLE IF NOT EXISTS mobile_otp(id TEXT PRIMARY KEY, mobile TEXT NOT NULL, ip TEXT NOT NULL, device_id TEXT NOT NULL, code_hash TEXT NOT NULL, created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, failures INTEGER NOT NULL, consumed INTEGER NOT NULL);
       CREATE INDEX IF NOT EXISTS mobile_otp_mobile ON mobile_otp(mobile, created_at);
       CREATE INDEX IF NOT EXISTS mobile_otp_ip ON mobile_otp(ip, created_at);`);
+    // Databases created by 0.3.0 pre-release builds lack the owner columns used for indexed blob authorization.
+    const columns = this.db.prepare('PRAGMA table_info(blob_refs)').all().map(row => String(row.name));
+    if (!columns.includes('patient_id')) this.db.exec(`ALTER TABLE blob_refs ADD COLUMN patient_id TEXT; ALTER TABLE blob_refs ADD COLUMN doctor_id TEXT;
+      UPDATE blob_refs SET patient_id=(SELECT json_extract(body,'$.patientId') FROM entities WHERE id=blob_refs.document_entity_id),
+        doctor_id=(SELECT json_extract(body,'$.doctorId') FROM entities WHERE id=blob_refs.document_entity_id);`);
+    this.db.exec('CREATE INDEX IF NOT EXISTS blob_refs_patient ON blob_refs(sha256, patient_id); CREATE INDEX IF NOT EXISTS blob_refs_doctor ON blob_refs(sha256, doctor_id);');
   }
   now() { return new Date(Date.now() + this.setting<number>('clockOffset', 0)).toISOString(); }
   all(type?: string): Entity[] {

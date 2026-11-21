@@ -168,7 +168,7 @@ Lab results for a handwritten request follow the hospital's independent-verifica
 | Caller | Can read |
 |---|---|
 | Doctor (author) | Own signed documents, their versions, delivery states and lab results, always |
-| Doctor (treating) | The full record of a patient with a care relationship: a waiting, called, in-consultation or on-hold visit, or one completed in the last 7 days, with that doctor. Every record read is audited. Otherwise `403 CARE_RELATIONSHIP_REQUIRED`. |
+| Doctor (treating) | The full record of a patient with a care relationship: a visit with that doctor dated within the last 7 days (IST) that is waiting, called, in consultation, on hold or completed. Every record read is audited. Otherwise `403 CARE_RELATIONSHIP_REQUIRED`. The same rule governs blob and document reads by non-authors. |
 | Pharmacy (web) | Prescriptions routed to the pharmacy only |
 | Lab (web) | Investigations routed to that lab only; results it entered |
 | Medical records (web) | Visit summaries, for coding the visit |

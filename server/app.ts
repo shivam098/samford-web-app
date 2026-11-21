@@ -19,6 +19,7 @@ import { scheduledChecks } from './admin.js';
 import { makePdf, validateUploadedFile } from './documents.js';
 import { mobileRouter } from './mobile-api.js';
 import { testSupportRouter } from './test-support.js';
+import { handwritingWebRoutes } from './handwriting-web.js';
 import { demoIds } from './personas.js';
 import { forgetSecret } from './blobs.js';
 
@@ -89,6 +90,8 @@ function apiReference(): Data {
     ['/api/receipts/{operationId}', 'get', 'Own operation outcome for timeout reconciliation'],
     ['/api/sync/device', 'post', 'Report original-persona unsent count and last sync'],
     ['/api/documents/{id}/file', 'get', 'Authorized PDF/image bytes; no filesystem paths'],
+    ['/api/handwriting/documents/{documentId}', 'get', 'Tablet handwritten document: versions visible to the caller, page/PDF links and recipient states'],
+    ['/api/handwriting/blobs/{sha256}', 'get', 'Immutable page PNG, PDF or ink bytes of a handwritten document the caller can see'],
     ['/api/reports/{kind}', 'get', 'Role-limited aggregates; from,to,department,format=csv'],
     ['/api/audit', 'get', 'Administrative redacted append-only audit; action,actor,from,to,format=csv'],
     ['/api/board/{id}', 'get', 'Public token-only board; never returns patient identifiers'],
@@ -270,6 +273,7 @@ export function createApplication(options: { database: string; dist?: string; te
     const versions = store.db.prepare('SELECT body FROM entity_versions WHERE id=? ORDER BY version DESC').all(entity.id).map(row => JSON.parse(String(row.body)));
     res.json(versions.map(e => safeEntity(actor, e)));
   });
+  handwritingWebRoutes(app, store, auth);
   app.post('/api/commands/:name', async (req, res) => {
     const { actor, session } = auth.get(req);
     const name = String(req.params.name); const request = req.body as CommandRequest;

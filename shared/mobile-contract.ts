@@ -209,7 +209,7 @@ const paths: Record<string, unknown> = {
   } },
   '/doctor/patients/{patientId}/record': { get: {
     operationId: 'getPatientRecordForDoctor', tags: ['Doctor'], security: bearer, parameters: [p('DeviceId'), p('IfNoneMatch'), p('PatientId'), { name: 'visitId', in: 'query', required: false, schema: id('Visit justifying access.'), description: 'Optional. If omitted the server uses the doctor\'s active or recent visit with this patient.' }],
-    summary: 'Longitudinal record of a patient in active care', description: 'Requires a care relationship: a WAITING, CALLED, IN_CONSULTATION or ON_HOLD visit, or one COMPLETED in the last 7 days, with this doctor. Every read is audited. Includes all doctors\' signed documents.',
+    summary: 'Longitudinal record of a patient in active care', description: 'Requires a care relationship: a visit with this doctor dated within the last 7 days (IST) that is WAITING, CALLED, IN_CONSULTATION, ON_HOLD or COMPLETED. Every read is audited. Includes all doctors\' signed documents.',
     responses: { '200': ok('Record', ref('PatientRecord'), true), ...notModified, ...errs(400, 401, 403, 404, 426, 429) }
   } },
   '/doctor/visits/{visitId}/complete': { post: {

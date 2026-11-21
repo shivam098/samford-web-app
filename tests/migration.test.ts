@@ -71,6 +71,15 @@ test('v2 database upgrades to v3 additively: original bytes kept, labs, personas
     migrate(store); assert.deepEqual(state(store.db), after); assert.equal(store.db.prepare('SELECT COUNT(*) AS n FROM feed_events').get()!.n, events);
   } finally { store.close(); f.clean(); }
 });
+test('pre-release blob reference tables gain indexed owner columns when opened', () => {
+  const f = fixture(); const db = new DatabaseSync(f.path);
+  db.exec('CREATE TABLE entities(id TEXT PRIMARY KEY, type TEXT NOT NULL, body TEXT NOT NULL); CREATE TABLE blob_refs(sha256 TEXT NOT NULL, document_entity_id TEXT NOT NULL, role TEXT NOT NULL, PRIMARY KEY(sha256, document_entity_id, role));');
+  db.prepare('INSERT INTO entities VALUES(?,?,?)').run('doc-v1', 'handwrittenDocument', JSON.stringify({ id: 'doc-v1', patientId: 'patient-x', doctorId: 'doctor-x' }));
+  db.prepare('INSERT INTO blob_refs VALUES(?,?,?)').run('a'.repeat(64), 'doc-v1', 'PAGE'); db.close();
+  const store = new Store(f.path);
+  try { assert.deepEqual({ ...store.db.prepare('SELECT patient_id, doctor_id FROM blob_refs').get() }, { patient_id: 'patient-x', doctor_id: 'doctor-x' }); }
+  finally { store.close(); f.clean(); }
+});
 test('unsupported identities roll migration back, and newer databases are refused', () => {
   const f = fixture(); const store = new Store(f.path);
   try {

@@ -7,7 +7,8 @@ const api = JSON.parse(readFileSync('test-artifacts\\journey-evidence.json', 'ut
 const browser = JSON.parse(readFileSync('test-artifacts\\browser-evidence.json', 'utf8')) as BrowserEvidence;
 const variants = JSON.parse(readFileSync('test-artifacts\\completeness-browser-evidence.json', 'utf8')) as BrowserEvidence;
 const remaining = JSON.parse(readFileSync('test-artifacts\\journey-browser-evidence.json', 'utf8')) as BrowserEvidence;
-const behavioralEvidence = [...browser.behavioralEvidence, ...variants.behavioralEvidence, ...remaining.behavioralEvidence];
+const handwriting = JSON.parse(readFileSync('test-artifacts\\handwriting-browser-evidence.json', 'utf8')) as BrowserEvidence;
+const behavioralEvidence = [...browser.behavioralEvidence, ...variants.behavioralEvidence, ...remaining.behavioralEvidence, ...handwriting.behavioralEvidence];
 const entries = traceability.map(journey => {
   const verified = api.journeys.find(row => row.id === journey.id);
   return { ...journey, primaryApiStatus: verified?.status ?? 'NOT_VERIFIED', apiEvidence: verified?.evidence ?? [],
@@ -19,7 +20,7 @@ const missing = entries.filter(entry => !entry.browserBehavior.length);
 if (missing.length) throw new Error(`Missing substantive browser evidence: ${missing.map(entry => entry.id).join(', ')}`);
 mkdirSync('docs', { recursive: true });
 writeFileSync('docs\\traceability.json', JSON.stringify({
-  version: applicationVersion, generatedAt: new Date().toISOString(), apiRunAt: api.generatedAt, browserRunAt: [browser.generatedAt, variants.generatedAt, remaining.generatedAt],
+  version: applicationVersion, generatedAt: new Date().toISOString(), apiRunAt: api.generatedAt, browserRunAt: [browser.generatedAt, variants.generatedAt, remaining.generatedAt, handwriting.generatedAt],
   scope: 'All 87 named journeys have primary API and substantive browser evidence. Each row describes exactly what was exercised; rendering is a separate smoke-test dimension, not proof of every optional state.',
   limitations: [
     'Public synthetic personas, OTP, captcha and signing PIN are demonstrations, not production authentication or legal clinical signatures.',
@@ -30,6 +31,7 @@ writeFileSync('docs\\traceability.json', JSON.stringify({
     'Multiple staff roles share one identity and independent-approver checks. Clinical/admin/staff role blending is prohibited. Network restrictions, recovery-code enrollment, clinical interaction knowledge and hospital production authorization policy remain unvalidated.',
     'Physical scanners, webcam capture, printers and signature capture are exercised through file/PDF/reference simulations, not hardware integrations.',
     'The accounting ledger, payroll, HR, live schemes and real data migration are explicitly excluded by the staff PRD. Day-end and claim exports do not constitute a ledger.',
+    'Paperless OPD mock for the doctor tablet and patient apps: seeded handwriting is synthetic placeholder ink until the doctor app supplies samford-ink/1 fixtures; signed means an immutable hash-chained record, not a legal e-signature; the pharmacy records dispensing status only (no stock or billing for handwritten prescriptions); the handwritten-request lab path has no barcode or billing step; patient OTP codes are returned by the API because no SMS exists; notifications are polled, not pushed.',
     'All primary journey flows and the named completeness variants are tested, not all 349 illustrated PRD screen states or every optional branch. No scale, accessibility certification or production-readiness claim.'
   ],
   journeys: entries

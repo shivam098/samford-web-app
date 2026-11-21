@@ -1,11 +1,12 @@
 {
-  "version": "0.2.0",
-  "generatedAt": "2026-11-02T03:13:41.713Z",
-  "apiRunAt": "2026-11-02T03:07:21.178Z",
+  "version": "0.3.0",
+  "generatedAt": "2026-11-21T03:27:33.859Z",
+  "apiRunAt": "2026-11-21T03:22:14.074Z",
   "browserRunAt": [
-    "2026-11-02T03:08:27.926Z",
-    "2026-11-02T03:09:08.250Z",
-    "2026-11-02T03:10:55.710Z"
+    "2026-11-21T03:24:04.671Z",
+    "2026-11-21T03:24:56.641Z",
+    "2026-11-21T03:27:31.378Z",
+    "2026-11-21T03:25:21.501Z"
   ],
   "scope": "All 87 named journeys have primary API and substantive browser evidence. Each row describes exactly what was exercised; rendering is a separate smoke-test dimension, not proof of every optional state.",
   "limitations": [
@@ -17,6 +18,7 @@
     "Multiple staff roles share one identity and independent-approver checks. Clinical/admin/staff role blending is prohibited. Network restrictions, recovery-code enrollment, clinical interaction knowledge and hospital production authorization policy remain unvalidated.",
     "Physical scanners, webcam capture, printers and signature capture are exercised through file/PDF/reference simulations, not hardware integrations.",
     "The accounting ledger, payroll, HR, live schemes and real data migration are explicitly excluded by the staff PRD. Day-end and claim exports do not constitute a ledger.",
+    "Paperless OPD mock for the doctor tablet and patient apps: seeded handwriting is synthetic placeholder ink until the doctor app supplies samford-ink/1 fixtures; signed means an immutable hash-chained record, not a legal e-signature; the pharmacy records dispensing status only (no stock or billing for handwritten prescriptions); the handwritten-request lab path has no barcode or billing step; patient OTP codes are returned by the API because no SMS exists; notifications are polled, not pushed.",
     "All primary journey flows and the named completeness variants are tested, not all 349 illustrated PRD screen states or every optional branch. No scale, accessibility certification or production-readiness claim."
   ],
   "journeys": [
@@ -336,7 +338,8 @@
         "Skip retains token; three calls mark Missed and explicit identity check can reopen; collection hold/resume persists; sample label stores actual scan code; narrative-only imaging verifies/releases independently."
       ],
       "browserBehavior": [
-        "Browser users scoped-search/open patient, confirm identity, type/review/save note, review medicine and send Rx; independent pharmacy browser acknowledges and dispenses; doctor sees fulfillment."
+        "Browser users scoped-search/open patient, confirm identity, type/review/save note, review medicine and send Rx; independent pharmacy browser acknowledges and dispenses; doctor sees fulfillment.",
+        "A front-desk browser check-in issues a token and the doctor tablet queue and events show the visit as WAITING."
       ],
       "browserRendered": true
     },
@@ -352,7 +355,9 @@
         "history",
         "allergy",
         "document",
-        "result"
+        "result",
+        "handwrittenDocument",
+        "investigationResult"
       ],
       "description": "Read history and reports, record allergies with immutable corrections, and view patient documents and authors.",
       "ui": "/#journey/DJ07",
@@ -417,7 +422,8 @@
         "History authors persist; allergy correction preserves old entry; extreme BP requires confirmation; two note saves retain both versions and missing-code request."
       ],
       "browserBehavior": [
-        "Doctor submits leave with an actual affected booking, adds authored history and examined signs, and records an unbooked follow-up. Persisted state distinguishes Requested leave and Recommended follow-up from approvals/bookings."
+        "Doctor submits leave with an actual affected booking, adds authored history and examined signs, and records an unbooked follow-up. Persisted state distinguishes Requested leave and Recommended follow-up from approvals/bookings.",
+        "Patient portal and doctor web render the exact signed pages; patient opening records Viewed on the tablet; an addendum keeps v1 readable as replaced; another family cannot list or fetch the pages."
       ],
       "browserRendered": true
     },
@@ -1183,7 +1189,8 @@
       ],
       "collection": [
         "result",
-        "review"
+        "review",
+        "investigationResult"
       ],
       "description": "Review released reports with action. A corrected report requires a new review while the original stays readable.",
       "ui": "/#journey/DJ20",
@@ -2947,7 +2954,8 @@
         "Counter selection persists; duplicate registration and full Aadhaar are blocked; MLC masked record books/checks in exactly once; doctor receives the visit and reprinted slip is Duplicate."
       ],
       "browserBehavior": [
-        "Front desk types a synthetic registration, books and checks in using actual browser forms; doctor independently sees the new patient; cashier payment form defaults exact due and changes bill to Paid."
+        "Front desk types a synthetic registration, books and checks in using actual browser forms; doctor independently sees the new patient; cashier payment form defaults exact due and changes bill to Paid.",
+        "A front-desk browser check-in issues a token and the doctor tablet queue and events show the visit as WAITING."
       ],
       "browserRendered": true
     },
@@ -3396,7 +3404,8 @@
         "rx",
         "dispense",
         "question",
-        "document"
+        "document",
+        "handwritingDelivery"
       ],
       "description": "Load an approved prescription, choose unexpired stock, dispense partially and request same-salt substitutions. GST and batches follow the sale.",
       "ui": "/#journey/SJ10",
@@ -3406,7 +3415,9 @@
         "/api/commands/pharmacy.receive",
         "/api/commands/pharmacy.paperRx",
         "/api/commands/pharmacy.question",
-        "/api/commands/pharmacy.dispense"
+        "/api/commands/pharmacy.dispense",
+        "/api/commands/handwriting.view",
+        "/api/commands/handwriting.dispense"
       ],
       "workflowCommands": [
         {
@@ -3478,6 +3489,29 @@
             "Part dispensed"
           ],
           "target": "rx"
+        },
+        {
+          "name": "handwriting.view",
+          "roles": [
+            "pharmacist",
+            "lab",
+            "patient"
+          ],
+          "allowedFrom": [
+            "Available"
+          ],
+          "target": "handwritingDelivery"
+        },
+        {
+          "name": "handwriting.dispense",
+          "roles": [
+            "pharmacist"
+          ],
+          "allowedFrom": [
+            "Viewed",
+            "Partially dispensed"
+          ],
+          "target": "handwritingDelivery"
         }
       ],
       "evidenceFile": "docs/traceability.json",
@@ -3488,7 +3522,8 @@
       ],
       "browserBehavior": [
         "Browser users scoped-search/open patient, confirm identity, type/review/save note, review medicine and send Rx; independent pharmacy browser acknowledges and dispenses; doctor sees fulfillment.",
-        "Pharmacist enters paper prescriber identity, uses the real file picker and medicine-line editor, opens the privately served scan through its UI link, and dispenses the matching batch. Original paper author and actual entering pharmacist are separate."
+        "Pharmacist enters paper prescriber identity, uses the real file picker and medicine-line editor, opens the privately served scan through its UI link, and dispenses the matching batch. Original paper author and actual entering pharmacist are separate.",
+        "Pharmacist opens the routed handwritten prescription (recorded Viewed), zooms the exact page, opens the signed PDF, records partial then full dispensing; the doctor tablet delivery feed shows each state."
       ],
       "browserRendered": true
     },
@@ -3773,7 +3808,8 @@
       "collection": [
         "order",
         "sample",
-        "question"
+        "question",
+        "handwritingDelivery"
       ],
       "description": "Only cleared orders can be collected. Label, accept or reject, recollect and dispatch with full history.",
       "ui": "/#journey/SJ14",
@@ -3785,7 +3821,9 @@
         "/api/commands/sample.accept",
         "/api/commands/sample.reject",
         "/api/commands/sample.dispatch",
-        "/api/commands/lab.question"
+        "/api/commands/lab.question",
+        "/api/commands/handwriting.view",
+        "/api/commands/handwriting.sample"
       ],
       "workflowCommands": [
         {
@@ -3873,6 +3911,28 @@
           ],
           "allowedFrom": [],
           "target": "order"
+        },
+        {
+          "name": "handwriting.view",
+          "roles": [
+            "pharmacist",
+            "lab",
+            "patient"
+          ],
+          "allowedFrom": [
+            "Available"
+          ],
+          "target": "handwritingDelivery"
+        },
+        {
+          "name": "handwriting.sample",
+          "roles": [
+            "lab"
+          ],
+          "allowedFrom": [
+            "Viewed"
+          ],
+          "target": "handwritingDelivery"
         }
       ],
       "evidenceFile": "docs/traceability.json",
@@ -3883,7 +3943,8 @@
         "Skip retains token; three calls mark Missed and explicit identity check can reopen; collection hold/resume persists; sample label stores actual scan code; narrative-only imaging verifies/releases independently."
       ],
       "browserBehavior": [
-        "Lab browser collects a covered order, rejects the first sample, recollects under a new barcode and accepts only that barcode. Original rejected container remains in history."
+        "Lab browser collects a covered order, rejects the first sample, recollects under a new barcode and accepts only that barcode. Original rejected container remains in history.",
+        "Each lab sees only its routed handwritten investigations; sample collection and result entry reach the tablet only after a different verifier releases the result, with the critical flag."
       ],
       "browserRendered": true
     },
@@ -3896,7 +3957,9 @@
       ],
       "collection": [
         "result",
-        "sample"
+        "sample",
+        "handwritingDelivery",
+        "investigationResult"
       ],
       "description": "Enter a result, have a different authorized verifier sign, release and alert. Corrections create new versions and reviews.",
       "ui": "/#journey/SJ15",
@@ -3905,7 +3968,9 @@
         "/api/commands/result.verify",
         "/api/commands/result.release",
         "/api/commands/result.amend",
-        "/api/commands/result.call"
+        "/api/commands/result.call",
+        "/api/commands/handwriting.result",
+        "/api/commands/handwriting.verify"
       ],
       "workflowCommands": [
         {
@@ -3958,6 +4023,28 @@
             "Released"
           ],
           "target": "result"
+        },
+        {
+          "name": "handwriting.result",
+          "roles": [
+            "lab"
+          ],
+          "allowedFrom": [
+            "Sample collected",
+            "Result ready"
+          ],
+          "target": "handwritingDelivery"
+        },
+        {
+          "name": "handwriting.verify",
+          "roles": [
+            "lab"
+          ],
+          "allowedFrom": [
+            "Sample collected",
+            "Result ready"
+          ],
+          "target": "handwritingDelivery"
         }
       ],
       "evidenceFile": "docs/traceability.json",
@@ -3968,7 +4055,8 @@
         "Skip retains token; three calls mark Missed and explicit identity check can reopen; collection hold/resume persists; sample label stores actual scan code; narrative-only imaging verifies/releases independently."
       ],
       "browserBehavior": [
-        "Lab verifier checks/releases a separately authored critical result through UI, consultant records action through UI, and an amendment requires a second independent verification/release and another doctor review. Original review remains."
+        "Lab verifier checks/releases a separately authored critical result through UI, consultant records action through UI, and an amendment requires a second independent verification/release and another doctor review. Original review remains.",
+        "Each lab sees only its routed handwritten investigations; sample collection and result entry reach the tablet only after a different verifier releases the result, with the critical flag."
       ],
       "browserRendered": true
     },
@@ -5310,14 +5398,17 @@
         "result",
         "rx",
         "document",
-        "discharge"
+        "discharge",
+        "handwrittenDocument",
+        "investigationResult"
       ],
       "description": "Read only released reports, approved prescriptions and your own documents. Download watermarked PDFs and upload a synthetic old report.",
       "ui": "/#journey/SJ36",
       "apis": [
         "/api/documents/{id}/file",
         "/api/commands/document.generate",
-        "/api/commands/document.upload"
+        "/api/commands/document.upload",
+        "/api/commands/handwriting.view"
       ],
       "workflowCommands": [
         {
@@ -5350,6 +5441,18 @@
           ],
           "allowedFrom": [],
           "target": null
+        },
+        {
+          "name": "handwriting.view",
+          "roles": [
+            "pharmacist",
+            "lab",
+            "patient"
+          ],
+          "allowedFrom": [
+            "Available"
+          ],
+          "target": "handwritingDelivery"
         }
       ],
       "evidenceFile": "docs/traceability.json",
@@ -5359,7 +5462,8 @@
         "Urgent orders generate tariff bills; unpaid collection fails; payment failure leaves unpaid, success clears lab; wrong barcode and own verification fail; critical release appears in doctor/patient scopes; amendments preserve original review and require another review."
       ],
       "browserBehavior": [
-        "Patient browser remains isolated to its linked sample family; an unrelated newly registered patient and other-family record are absent."
+        "Patient browser remains isolated to its linked sample family; an unrelated newly registered patient and other-family record are absent.",
+        "Patient portal and doctor web render the exact signed pages; patient opening records Viewed on the tablet; an addendum keeps v1 readable as replaced; another family cannot list or fetch the pages."
       ],
       "browserRendered": true
     },

@@ -355,6 +355,15 @@ test('blob and bundle validation: hashes, types, structure, limits, dimensions, 
     const ok = await complete([doc.doc]); assert.equal(ok.status, 201, JSON.stringify(ok.body));
     const visit = await phone.get(`/patient/profiles/${walk.body.patient.patientId}/record`);
     assert.equal(visit.body.visits[0].documents[0].documentId, ok.body.documents[0].documentId);
+    const second = await doctor.post('/doctor/walk-ins', { name: 'Synthetic shared-page walk-in', age: 50, sex: 'Male', mobile: '9000077003' });
+    await doctor.post(`/doctor/queue/${second.body.visitId}/start`, { identityConfirmed: true });
+    const shared = { ...doc.doc, clientDocId: randomUUID() }; const sharedBundle = randomUUID();
+    assert.equal((await doctor.post(`/doctor/visits/${second.body.visitId}/complete`, { bundleId: sharedBundle, completedAt: new Date().toISOString(), documents: [shared] }, sharedBundle)).status, 201);
+    const secondPhone = await b.patient('9000077003'); const unrelated = await b.patient('9000000003');
+    assert.equal((await secondPhone.get(`/blobs/${png.sha}`)).status, 200, 'identical pages are stored once and readable by each patient they were signed for');
+    assert.equal((await phone.get(`/blobs/${png.sha}`)).status, 200);
+    code(await unrelated.get(`/blobs/${png.sha}`), 404, 'NOT_FOUND');
+    assert.equal(Number(b.store.db.prepare('SELECT COUNT(*) AS n FROM blob_refs WHERE sha256=?').get(png.sha)!.n), 2);
   } finally { await b.close(); }
 });
 

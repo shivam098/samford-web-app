@@ -19,3 +19,22 @@ input,select,textarea{border:1px solid #dce3d6;border-radius:7px;background:var(
 .app-shell:not(.dark) .micro,.app-shell:not(.dark) small,.app-shell:not(.dark) .eyebrow,.app-shell:not(.dark) .lead,.app-shell:not(.dark) .form-help,.app-shell:not(.dark) .sidebar nav a,.app-shell:not(.dark) .sidebar-bottom>a,.app-shell:not(.dark) .field>label:first-child,.app-shell:not(.dark) .summary-list dt,.app-shell:not(.dark) .entity-detail dt{color:#5d705e}.app-shell:not(.dark) input::placeholder,.app-shell:not(.dark) textarea::placeholder{color:#6b7964}.app-shell:not(.dark) .stat-top,.app-shell:not(.dark) .app-footer,.app-shell:not(.dark) .sidebar-note,.app-shell:not(.dark) .sidebar-note span,.app-shell:not(.dark) .activity-strip,.app-shell:not(.dark) .topbar-portal{color:#61745d}
 .home-layout-editor{border:1px solid var(--line);border-radius:9px;padding:12px;background:var(--bg)}.layout-card{display:flex;align-items:center;gap:9px;flex-wrap:wrap;border:1px solid var(--line);border-radius:8px;padding:13px;margin-top:10px;background:var(--surface)}.layout-card>strong{flex:1;min-width:120px;font-size:.74rem}.drag-handle{cursor:grab;color:var(--muted)}.layout-card .check{font-size:.64rem}.layout-rows{display:flex;align-items:center;gap:5px;font-size:.65rem}.layout-rows input{width:63px!important;padding:6px}.layout-card .button{padding:5px 8px;min-height:29px;font-size:.61rem}.handover-editor fieldset{margin:12px 0;padding:13px;border:1px solid var(--line);border-radius:8px;min-width:0}.handover-editor legend{font-size:.7rem;padding:0 6px}.handover-editor legend .pill{margin-left:6px}.handover-editor label{font-size:.67rem}.doctor-home-grid{grid-template-columns:repeat(auto-fit,minmax(265px,1fr))}.home-card-heading{display:block}.home-preview{margin-top:16px;border-top:1px solid var(--line)}.home-preview>a{display:grid;grid-template-columns:1fr auto;gap:5px;padding:12px 0;border-bottom:1px solid var(--line)}.home-preview>a:last-child{border-bottom:0}.home-preview>a strong{font-size:.72rem;overflow-wrap:anywhere}.home-preview>a small{font-size:.6rem;grid-column:1}.home-preview>a svg{grid-column:2;grid-row:1/3;align-self:center;color:var(--muted)}.home-preview>p{padding:17px 0}.home-work-card{padding-bottom:12px}.home-preview>a:hover strong{color:var(--brand)}@media(max-width:540px){.doctor-home-grid{grid-template-columns:1fr}.handover-editor .form-grid{grid-template-columns:1fr}.layout-card>strong{min-width:130px}}
 .decision-context{border:1px solid var(--line);border-left:3px solid var(--brand);border-radius:8px;padding:14px;margin:17px 0;background:var(--bg);overflow-wrap:anywhere}.decision-context h3{font-size:.82rem}.decision-context p{font-size:.72rem;margin-top:8px;line-height:1.75}
+
+/* Handwritten records from the doctor tablet */
+.handwriting-viewer{border:1px solid var(--line);border-radius:14px;background:var(--surface);padding:14px;margin:12px 0;display:grid;gap:10px}
+.handwriting-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.handwriting-head h3{margin:2px 0}
+.handwriting-head .eyebrow{font-size:.75rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.handwriting-tools{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap}
+.handwriting-tools .compact-field{display:grid;gap:2px;font-size:.8rem;color:var(--muted)}
+.handwriting-controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.handwriting-controls .spacer{flex:1}
+.handwriting-controls .icon-btn{min-width:36px;min-height:36px;font-size:1.2rem;line-height:1}
+.handwriting-page{background:#e9ece6;border-radius:10px;padding:10px;max-height:78vh;overflow:auto}
+.handwriting-page img{display:block;margin:0 auto;background:#fff;box-shadow:var(--shadow);border-radius:4px}
+.handwriting-page.fit img{width:100%;height:auto}
+.handwriting-gate{display:grid;gap:8px;justify-items:start;padding:14px;border:1px dashed var(--brand);border-radius:10px;background:var(--sage)}
+.handwriting-hints summary{cursor:pointer;color:var(--warning)}
+.handwriting-hints ul,.handwriting-recipients ul,.handwritten-list{margin:6px 0 0;padding-left:18px;display:grid;gap:6px}
+.handwriting-recipients li,.handwritten-list li{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.handwriting-viewer code{font-size:.75rem}

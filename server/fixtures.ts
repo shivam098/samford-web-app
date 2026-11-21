@@ -65,7 +65,8 @@ export function synthesizePage(seed: string, kind: 'summary' | 'prescription' | 
   for (let y = 300; y < height - 160; y += 78) raster.rect(70, y, width - 140, 2, [205, 222, 245]);
   raster.rect(140, 260, 3, height - 400, [245, 205, 205]);
   raster.rect(0, 0, width, 120, [255, 244, 214]);
-  banner(raster, 'SYNTHETIC SAMPLE - NOT FOR CLINICAL USE', 70, 38, 24, [150, 82, 0]);
+  const notice = 'SYNTHETIC SAMPLE - NOT FOR CLINICAL USE';
+  banner(raster, notice, 70, 38, Math.min(24, (width - 140) / (notice.length * 1.6)), [150, 82, 0]);
   if (kind === 'prescription' && pageIndex === 0) {
     strokes.push({ width: 6, points: [[180, 230], [180, 150], [235, 150], [250, 170], [235, 192], [180, 192]] }, { width: 6, points: [[200, 192], [262, 245]] }, { width: 6, points: [[232, 212], [280, 252]] }, { width: 6, points: [[282, 210], [228, 254]] });
   } else strokes.push(word(next, 180, 215, 6 + Math.floor(next() * 4)));

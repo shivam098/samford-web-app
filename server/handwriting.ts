@@ -49,31 +49,35 @@ export const versionsOf = (store: Store, documentId: string) => store.query('han
 export const deliveriesOf = (store: Store, documentId: string) => store.query('handwritingDelivery', 'documentId', documentId);
 const patientName = (store: Store, patientId?: string) => text(store.maybe(patientId ?? '')?.data ?? {}, 'name') || 'the patient';
 const typeLabel = (type: string) => documentTypeLabels[type] ?? 'Document';
-const blobRef = (store: Store, sha256: string, entityId: string, role: string) =>
-  store.db.prepare('INSERT OR IGNORE INTO blob_refs(sha256, document_entity_id, role) VALUES(?,?,?)').run(sha256, entityId, role);
+const blobRef = (store: Store, sha256: string, entity: Entity, role: string) =>
+  store.db.prepare('INSERT OR IGNORE INTO blob_refs(sha256, document_entity_id, role, patient_id, doctor_id) VALUES(?,?,?,?,?)').run(sha256, entity.id, role, entity.patientId ?? null, entity.doctorId ?? null);
 
-// Care relationship: an active visit with this doctor, or one completed within seven days.
-const careStatuses = new Set(['Waiting', 'Called', 'In consultation', 'Held']);
+// Care relationship: a visit with this doctor dated within the last 7 days (IST) that is checked in, in progress, on hold or completed.
+const careStatuses = new Set(['Waiting', 'Called', 'In consultation', 'Held', 'Done']);
+const careFrom = (store: Store) => istDate(new Date(Date.parse(store.now()) - 7 * 86400000).toISOString());
+const isCare = (visit: Entity, doctorId: string, from: string) => visit.type === 'visit' && visit.doctorId === doctorId && careStatuses.has(visit.status) && text(visit.data, 'date') >= from;
 export function careVisit(store: Store, doctorId: string, patientId: string, visitId?: string): Entity | undefined {
   const candidates = visitId ? [store.maybe(visitId)].filter((visit): visit is Entity => visit?.type === 'visit' && visit.patientId === patientId) : store.query('visit', 'patientId', patientId);
-  const now = Date.parse(store.now());
-  return candidates.find(visit => visit.doctorId === doctorId && (careStatuses.has(visit.status) ||
-    (visit.status === 'Done' && now - Date.parse(text(visit.data, 'completedAt') || text(visit.data, 'firstDoneAt') || visit.updatedAt) <= 7 * 86400000)));
+  const from = careFrom(store);
+  return candidates.find(visit => isCare(visit, doctorId, from));
+}
+// Uses the (doctor, date) index, so blob checks stay cheap however many documents share a page.
+export function carePatients(store: Store, doctorId: string): Set<string> {
+  const from = careFrom(store);
+  return new Set(store.db.prepare("SELECT body FROM entities WHERE type='visit' AND json_extract(body,'$.doctorId')=? AND json_extract(body,'$.data.date')>=?").all(doctorId, from)
+    .map(row => JSON.parse(String(row.body)) as Entity).filter(visit => isCare(visit, doctorId, from)).map(visit => visit.patientId ?? ''));
 }
 export const doctorMayRead = (store: Store, doctorId: string, version: Entity) => version.doctorId === doctorId || Boolean(careVisit(store, doctorId, version.patientId ?? ''));
 const resultVersion = (store: Store, result: Entity) => store.maybe(`${text(result.data, 'documentId')}-v${num(result.data, 'version')}`);
+// Blob access is derived from referencing documents. Lookups are indexed by owner so shared pages do not fan out.
 export function blobReadable(store: Store, sha256: string, viewer: Viewer): boolean {
-  if (viewer.kind === 'DOCTOR' && blobInfo(store, sha256)?.createdBy === viewer.doctorId) return true;
-  for (const ref of store.db.prepare('SELECT document_entity_id FROM blob_refs WHERE sha256=?').all(sha256)) {
-    const entity = store.maybe(String(ref.document_entity_id));
-    if (entity?.type === 'handwrittenDocument') {
-      if (viewer.kind === 'DOCTOR' ? doctorMayRead(store, viewer.doctorId, entity) : viewer.profileIds.has(entity.patientId ?? '') && routingOf(entity).patient) return true;
-    } else if (entity?.type === 'investigationResult' && entity.status === 'Released') {
-      const version = resultVersion(store, entity);
-      if (viewer.kind === 'DOCTOR' ? entity.doctorId === viewer.doctorId || Boolean(careVisit(store, viewer.doctorId, entity.patientId ?? '')) : viewer.profileIds.has(entity.patientId ?? '') && Boolean(version && routingOf(version).patient)) return true;
-    }
-  }
-  return false;
+  const refs = (column: 'patient_id' | 'doctor_id', ids: string[]) => ids.length ? store.db.prepare(`SELECT document_entity_id FROM blob_refs WHERE sha256=? AND ${column} IN (${ids.map(() => '?').join(',')})`)
+    .all(sha256, ...ids).map(row => store.maybe(String(row.document_entity_id))).filter((entity): entity is Entity => Boolean(entity)) : [];
+  if (viewer.kind === 'PATIENT') return refs('patient_id', [...viewer.profileIds]).some(entity => entity.type === 'handwrittenDocument' ? routingOf(entity).patient
+    : entity.type === 'investigationResult' && entity.status === 'Released' && Boolean(resultVersion(store, entity) && routingOf(resultVersion(store, entity)!).patient));
+  if (blobInfo(store, sha256)?.createdBy === viewer.doctorId) return true;
+  const readable = (entity: Entity) => entity.type === 'handwrittenDocument' || (entity.type === 'investigationResult' && entity.status === 'Released');
+  return refs('doctor_id', [viewer.doctorId]).some(readable) || refs('patient_id', [...carePatients(store, viewer.doctorId)]).some(readable);
 }
 
 type Missing = { sha256: string; mediaType: string; role: 'PAGE' | 'PDF' | 'INK'; clientDocId: string | null; pageIndex?: number };
@@ -130,9 +134,9 @@ export function signVersion(store: Store, args: SignArgs): Entity {
     patientId: visit.patientId, doctorId: doctor.id, department: visit.department ?? doctor.department,
     data: { documentId, version, visitId: visit.id, type: doc.type, typeLabel: typeLabel(doc.type), title: doc.title, name: `${doc.title} v${version}`, pages, pdfSha256: doc.pdfSha256, inkSha256: doc.inkSha256, inkFormat: doc.inkFormat,
       routing, hints, signedAt: doc.signedAt, receivedAt, reason, authorName: doctor.name, recordHash, previousRecordHash, supersedes: previous?.id ?? null, ...args.origin } });
-  for (const page of pages) blobRef(store, page.pngSha256, id, 'PAGE');
-  blobRef(store, doc.pdfSha256, id, 'PDF');
-  if (doc.inkSha256) blobRef(store, doc.inkSha256, id, 'INK');
+  for (const page of pages) blobRef(store, page.pngSha256, entity, 'PAGE');
+  blobRef(store, doc.pdfSha256, entity, 'PDF');
+  if (doc.inkSha256) blobRef(store, doc.inkSha256, entity, 'INK');
   return entity;
 }
 export function deliver(store: Store, version: Entity, at: string, actorId: string): Entity[] {
@@ -204,7 +208,7 @@ export function enterResult(store: Store, writer: Writer, actor: Actor, delivery
     name: input.testName.trim(), testName: input.testName.trim(), value: input.value.trim(), unit: input.unit?.trim() ?? '', refRange: input.refRange?.trim() ?? '', flag: input.flag ?? '',
     summary: input.summary?.trim() ?? '', reportPdfSha256: input.reportPdfSha256 ?? '', enteredBy: actor.id, enteredByName: actor.name, enteredAt: store.now()
   }, 'Entered', { patientId: delivery.patientId, doctorId: delivery.doctorId, department: delivery.department });
-  if (input.reportPdfSha256) blobRef(store, input.reportPdfSha256, result.id, 'REPORT');
+  if (input.reportPdfSha256) blobRef(store, input.reportPdfSha256, result, 'REPORT');
   return result;
 }
 function emitResult(store: Store, result: Entity) {

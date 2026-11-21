@@ -42,11 +42,13 @@ export function mobileRouter(store: Store, options: MobileOptions): Router {
   const router = express.Router();
   const relaxed = options.relaxedLimits === true;
   const windows = new Map<string, { started: number; count: number }>();
+  let lastSweep = 0;
   const limit = (key: string, max: number) => {
     const now = Date.now(); let window = windows.get(key);
     if (!window || now - window.started >= 60000) { window = { started: now, count: 0 }; windows.set(key, window); }
     window.count++;
-    if (windows.size > 5000) for (const [entry, value] of windows) if (now - value.started >= 60000) windows.delete(entry);
+    // Sweeping is periodic so many distinct tokens (1 lakh patients) do not make every request scan the map.
+    if (windows.size > 5000 && now - lastSweep > 10000) { lastSweep = now; for (const [entry, value] of windows) if (now - value.started >= 60000) windows.delete(entry); }
     if (window.count > max * (relaxed ? 100 : 1)) fail(429, 'RATE_LIMITED', 'Too many requests. Wait before retrying.', { retryAfterSeconds: Math.max(1, Math.ceil((window.started + 60000 - now) / 1000)) });
   };
   const guard = (req: Request, auth: Auth): Principal | undefined => {
@@ -164,7 +166,7 @@ export function mobileRouter(store: Store, options: MobileOptions): Router {
     const care = careVisit(store, principal.actor.id, patient.id, visitId);
     if (!care) {
       store.audit(principal.actor.id, 'doctor', 'record.read', patient.id, null, { channel: 'Doctor tablet', allowed: false }, '', 'Rejected');
-      fail(403, 'CARE_RELATIONSHIP_REQUIRED', 'Open the record from a current visit with this patient, or one completed in the last 7 days.');
+      fail(403, 'CARE_RELATIONSHIP_REQUIRED', 'Open the record from a visit with this patient in the last 7 days that has been checked in.');
     }
     store.audit(principal.actor.id, 'doctor', 'record.read', patient.id, null, { channel: 'Doctor tablet', justifyingVisitId: care.id });
     return patientRecord(store, patient, viewer, signedUrls(store, base));
